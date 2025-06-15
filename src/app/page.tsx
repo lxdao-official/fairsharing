@@ -2,6 +2,7 @@
 
 import { AppShell, Button, Title } from '@mantine/core';
 import { Header } from '../components/Header';
+import { Footer } from '@/components/Footer';
 
 export default function Home() {
   return (
@@ -16,6 +17,9 @@ export default function Home() {
           Click me
         </Button>
       </AppShell.Main>
+      <AppShell.Footer>
+        <Footer />
+      </AppShell.Footer>
     </AppShell>
   );
 }

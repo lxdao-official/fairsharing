@@ -44,7 +44,7 @@ export function ProjectCard({
   return (
     <Card
       shadow="none"
-      padding="lg"
+      padding="32px"
       radius="xl"
       withBorder
       onMouseEnter={() => setIsHovered(true)}

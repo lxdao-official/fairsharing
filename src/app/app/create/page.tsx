@@ -164,22 +164,45 @@ export default function CreateProjectPage() {
                 </Text>
                 <Group align="center" mt={8}>
                   <TextInput
-                    value={0}
+                    placeholder="0"
                     style={{ width: 120 }}
                     radius="sm"
                     size="sm"
                   />
-                  <Text
-                    style={{
-                      color: '#6B7280',
-                      fontWeight: 800,
-                    }}
-                  >
+                  <Text style={{ color: '#6B7280', fontWeight: 800 }}>
                     TOKEN_NAME/hour
                   </Text>
                 </Group>
               </Box>
             </Stack>
+          </Group>
+          {/* Team Member Section */}
+          <Group align="flex-start" gap={48} mt={56}>
+            <Box style={{ minWidth: 260 }}>
+              <Title order={2}>Team Member</Title>
+              <Text c="#6B7280" style={{ fontSize: 14 }}>
+                This part is optional.
+                <br />
+                You can edit it later in the project page.
+              </Text>
+            </Box>
+            <Box style={{ flex: 1, maxWidth: 785 }}>
+              <TextInput
+                label={
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>
+                    Project Owner (Wallet address or ENS)
+                  </span>
+                }
+                description={
+                  <span style={{ color: '#6B7280', fontSize: 14 }}>
+                    Defaults to the project creator.
+                  </span>
+                }
+                placeholder="0x123456"
+                radius="sm"
+                size="md"
+              />
+            </Box>
           </Group>
         </Container>
       </AppShell.Main>

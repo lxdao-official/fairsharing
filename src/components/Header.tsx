@@ -47,8 +47,13 @@ export function Header() {
             <TelegramIcon />
           </Link>
         </UnstyledButton>
+        <Link href="/app/create" style={{ textDecoration: 'none' }}>
+          <Button radius="md" size="md" color="primary">
+            Create New Pie
+          </Button>
+        </Link>
         <Button radius="md" size="md" color="primary">
-          Launch the App
+          Connect Wallet
         </Button>
       </Group>
     </Group>

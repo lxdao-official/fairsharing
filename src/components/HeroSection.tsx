@@ -1,5 +1,6 @@
 import { Box, Button, Center, Stack, Text, Title } from '@mantine/core';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export function HeroSection() {
   return (
@@ -22,9 +23,11 @@ export function HeroSection() {
         <Text size="xl" style={{ textAlign: 'center', maxWidth: 700 }}>
           A decentralized way to record, validate, and reward contributions.
         </Text>
-        <Button size="lg" radius="md" color="secondary">
-          Launch the App
-        </Button>
+        <Link href="/app" style={{ textDecoration: 'none' }}>
+          <Button size="lg" radius="md" color="secondary">
+            Launch the App
+          </Button>
+        </Link>
       </Stack>
     </Box>
   );

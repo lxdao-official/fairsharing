@@ -30,12 +30,20 @@ export function Header() {
       </Group>
       <Group gap="md">
         <UnstyledButton aria-label="Twitter">
-          <Link target="_blank" href="https://x.com/fairshar_ing">
+          <Link
+            style={{ display: 'flex', alignItems: 'center' }}
+            target="_blank"
+            href="https://x.com/fairshar_ing"
+          >
             <TwitterIcon />
           </Link>
         </UnstyledButton>
         <UnstyledButton aria-label="Telegram">
-          <Link target="_blank" href="https://t.me/LXDAO/32">
+          <Link
+            style={{ display: 'flex', alignItems: 'center' }}
+            target="_blank"
+            href="https://t.me/LXDAO/32"
+          >
             <TelegramIcon />
           </Link>
         </UnstyledButton>

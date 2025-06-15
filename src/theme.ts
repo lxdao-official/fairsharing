@@ -20,7 +20,7 @@ const secondary: MantineColorsTuple = [
   '#ffe35c',
   '#ffdb2e',
   '#ffdd44',
-  '#e6c53d',
+  '#FDE047',
   '#ccad36',
   '#b3962f',
   '#997e28',

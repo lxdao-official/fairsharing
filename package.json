@@ -14,6 +14,7 @@
     "@mantine/hooks": "^8.1.0",
     "@tabler/icons-react": "^3.34.0",
     "connectkit": "^1.9.1",
+    "lodash.debounce": "^4.0.8",
     "next": "15.3.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

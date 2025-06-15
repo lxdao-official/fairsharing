@@ -3,6 +3,7 @@
 import { Group, Button, Text, rem, UnstyledButton } from '@mantine/core';
 import Image from 'next/image';
 import Link from 'next/link';
+import { ConnectWallet } from './ConnectWallet';
 
 function Logo() {
   return <Image src="/logo.png" alt="Logo" width={158} height={40} />;
@@ -52,9 +53,7 @@ export function Header() {
             Create New Pie
           </Button>
         </Link>
-        <Button radius="md" size="md" color="primary">
-          Connect Wallet
-        </Button>
+        <ConnectWallet />
       </Group>
     </Group>
   );

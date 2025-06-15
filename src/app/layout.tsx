@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
 import './globals.css';
-import { theme } from '../theme';
 import { Lexend, Roboto } from 'next/font/google';
+import { Web3Provider } from '../components/Web3Provider';
 
 const lexend = Lexend({
   subsets: ['latin'],
@@ -30,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${roboto.variable} ${lexend.variable}  antialiased`}>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <Web3Provider>{children}</Web3Provider>
       </body>
     </html>
   );

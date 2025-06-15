@@ -11,12 +11,14 @@ import {
   Pagination,
   Stack,
   Center,
+  Button,
 } from '@mantine/core';
 import { Header } from '../../components/Header';
 import { Footer } from '@/components/Footer';
 import { SearchBar } from '../../components/SearchBar';
 import { ProjectCard } from '../../components/ProjectCard';
 import { useState } from 'react';
+import { useAccount } from 'wagmi';
 
 // Mock data for projects
 const mockProjects = Array.from({ length: 100 }, (_, i) => ({
@@ -28,14 +30,61 @@ const mockProjects = Array.from({ length: 100 }, (_, i) => ({
   isFollowed: i % 5 === 0, // Some cards are followed
 }));
 
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="subtle"
+      style={{
+        fontWeight: 700,
+        fontSize: 32,
+        color: active ? '#000' : '#A0A7B4',
+        borderBottom: '3px solid transparent',
+        borderBottomColor: active ? '#000' : 'transparent',
+        borderRadius: 0,
+        padding: 0,
+        backgroundColor: 'transparent',
+        lineHeight: 1.2,
+        height: 'auto',
+        '&:hover': {
+          backgroundColor: 'transparent',
+          color: '#000',
+        },
+      }}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
 export default function AppPage() {
   const [searchValue, setSearchValue] = useState('');
   const [sortBy, setSortBy] = useState('Popularity');
   const [currentPage, setCurrentPage] = useState(1);
+  const [tab, setTab] = useState<'my' | 'following' | 'all'>('all');
   const itemsPerPage = 12;
+  const { isConnected } = useAccount();
+
+  const myProjects = mockProjects.filter((p) => p.id % 3 === 0);
+  const followingProjects = mockProjects.filter((p) => p.isFollowed);
+
+  let tabProjects = mockProjects;
+  if (isConnected) {
+    if (tab === 'my') tabProjects = myProjects;
+    else if (tab === 'following') tabProjects = followingProjects;
+    else if (tab === 'all') tabProjects = mockProjects;
+  }
 
   // Filter and paginate projects
-  const filteredProjects = mockProjects.filter(
+  const filteredProjects = tabProjects.filter(
     (project) =>
       project.title.toLowerCase().includes(searchValue.toLowerCase()) ||
       project.description.toLowerCase().includes(searchValue.toLowerCase())
@@ -43,9 +92,8 @@ export default function AppPage() {
 
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentProjects = filteredProjects.slice(
-    startIndex,
-    startIndex + itemsPerPage
+  const currentProjects = filteredProjects.filter(
+    (_, index) => index >= startIndex && index < startIndex + itemsPerPage
   );
 
   return (
@@ -122,9 +170,35 @@ export default function AppPage() {
             {/* Projects Section */}
             <Stack gap="lg">
               <Group justify="space-between" align="center">
-                <Title order={2} size="xl" fw={700}>
-                  All Projects ({filteredProjects.length})
-                </Title>
+                {isConnected ? (
+                  <Group gap={32}>
+                    <TabButton
+                      active={tab === 'my'}
+                      onClick={() => setTab('my')}
+                    >
+                      My Pie ({myProjects.length})
+                    </TabButton>
+                    <TabButton
+                      active={tab === 'following'}
+                      onClick={() => setTab('following')}
+                    >
+                      Following
+                    </TabButton>
+                    <TabButton
+                      active={tab === 'all'}
+                      onClick={() => setTab('all')}
+                    >
+                      All Projects ({filteredProjects.length})
+                    </TabButton>
+                  </Group>
+                ) : (
+                  <TabButton
+                    active={tab === 'all'}
+                    onClick={() => setTab('all')}
+                  >
+                    All Projects ({filteredProjects.length})
+                  </TabButton>
+                )}
                 <Group gap="sm">
                   <Text size="sm" c="dimmed">
                     Sort By

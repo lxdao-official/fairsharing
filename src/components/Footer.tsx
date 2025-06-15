@@ -1,10 +1,8 @@
-import { Container, Group, Stack, Text, Anchor, Title } from '@mantine/core';
+import { Container, Group, Stack, Anchor, Title, Box } from '@mantine/core';
 
 export function Footer() {
   return (
-    <footer
-      style={{ background: '#23231d', color: 'white', padding: '2rem 0' }}
-    >
+    <Box style={{ background: '#23231d', color: 'white', padding: '2rem 0' }}>
       <Container size="xl" style={{ maxWidth: 1280 }}>
         <Group align="flex-start">
           <Stack style={{ width: 200, marginRight: 56 }}>
@@ -56,6 +54,6 @@ export function Footer() {
           </Stack>
         </Group>
       </Container>
-    </footer>
+    </Box>
   );
 }

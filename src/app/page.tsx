@@ -17,7 +17,7 @@ export default function Home() {
           <HeroSection />
         </Container>
       </AppShell.Main>
-      <AppShell.Footer>
+      <AppShell.Footer style={{ position: 'static' }}>
         <Footer />
       </AppShell.Footer>
     </AppShell>

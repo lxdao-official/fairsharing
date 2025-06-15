@@ -219,7 +219,7 @@ export default function CreateProjectPage() {
               />
 
               {/* Member Management */}
-              <Box mt={32}>
+              <Box mt={24}>
                 <MemberManagement />
               </Box>
             </Box>

@@ -14,7 +14,7 @@ import {
   Radio,
 } from '@mantine/core';
 import { useState } from 'react';
-import { IconUser, IconCircleCheckFilled } from '@tabler/icons-react';
+import { IconUser, IconCircleCheckFilled, IconLock } from '@tabler/icons-react';
 
 export default function CreateProjectPage() {
   return (
@@ -37,7 +37,7 @@ export default function CreateProjectPage() {
           </Title>
           <Group align="flex-start" gap={48}>
             <Title order={2}>Project Information</Title>
-            <Stack style={{ flex: 1 }}>
+            <Stack style={{ flex: 1, maxWidth: 785 }}>
               <TextInput
                 label={
                   <span style={{ fontWeight: 700, fontSize: 16 }}>
@@ -121,6 +121,64 @@ export default function CreateProjectPage() {
                 </Text>
                 <ValidationStrategySelect />
               </Box>
+
+              {/* Validation Period */}
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                  Validation Period
+                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                </Text>
+                <Group align="center" mt={8} mb={8}>
+                  <TextInput
+                    placeholder="5"
+                    style={{ width: 100 }}
+                    radius="sm"
+                    size="sm"
+                  />
+                  <Text fw={800} style={{ color: '#6B7280' }}>
+                    Days
+                  </Text>
+                </Group>
+              </Box>
+
+              {/* Who can submit contributions? */}
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
+                  Who can submit contributions?
+                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                </Text>
+                <SubmitterCardSelect />
+              </Box>
+
+              {/* Default Hourly Pay */}
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                  Default Hourly Pay
+                </Text>
+                <Text
+                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
+                >
+                  Used to calculate contribution value as 'hours worked × hourly
+                  rate'. You can later set custom rates for each contributor. If
+                  left blank or set to 0, contributors can claim tokens freely.
+                </Text>
+                <Group align="center" mt={8}>
+                  <TextInput
+                    value={0}
+                    style={{ width: 120 }}
+                    radius="sm"
+                    size="sm"
+                  />
+                  <Text
+                    style={{
+                      color: '#6B7280',
+                      fontWeight: 800,
+                    }}
+                  >
+                    TOKEN_NAME/hour
+                  </Text>
+                </Group>
+              </Box>
             </Stack>
           </Group>
         </Container>
@@ -133,29 +191,38 @@ export default function CreateProjectPage() {
   );
 }
 
-function ValidateCardSelect() {
-  const [value, setValue] = useState<'specific' | 'all'>('specific');
+// 通用卡片选择组件
+function CardSelect<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: {
+    key: T;
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+  }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
   return (
-    <Box style={{ display: 'flex', gap: 8 }}>
-      <ValidateCard
-        icon={<IconUser size={32} />}
-        title="Specific Members"
-        description={"Only members added as 'validator'"}
-        active={value === 'specific'}
-        onClick={() => setValue('specific')}
-      />
-      <ValidateCard
-        icon={<IconUser size={32} />}
-        title="Every Contributor"
-        description="Anyone contributed to this project"
-        active={value === 'all'}
-        onClick={() => setValue('all')}
-      />
-    </Box>
+    <Group gap={8}>
+      {options.map((opt) => (
+        <CardOption
+          key={opt.key}
+          icon={opt.icon}
+          title={opt.title}
+          description={opt.description}
+          active={value === opt.key}
+          onClick={() => onChange(opt.key)}
+        />
+      ))}
+    </Group>
   );
 }
 
-function ValidateCard({
+function CardOption({
   icon,
   title,
   description,
@@ -192,6 +259,67 @@ function ValidateCard({
         <Text style={{ color: '#6B7280', fontSize: 14 }}>{description}</Text>
       </Box>
     </Box>
+  );
+}
+
+// 替换 Who can validate contributions? 选择器
+function ValidateCardSelect() {
+  const [value, setValue] = useState<'specific' | 'all'>('specific');
+  const options: {
+    key: 'specific' | 'all';
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+  }[] = [
+    {
+      key: 'specific',
+      icon: <IconUser size={32} />,
+      title: 'Specific Members',
+      description: "Only members added as 'validator'",
+    },
+    {
+      key: 'all',
+      icon: <IconUser size={32} />,
+      title: 'Every Contributor',
+      description: 'Anyone contributed to this project',
+    },
+  ];
+  return (
+    <CardSelect
+      options={options}
+      value={value}
+      onChange={setValue as (v: 'specific' | 'all') => void}
+    />
+  );
+}
+
+function SubmitterCardSelect() {
+  const [value, setValue] = useState<'everyone' | 'restricted'>('everyone');
+  const options: {
+    key: 'everyone' | 'restricted';
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+  }[] = [
+    {
+      key: 'everyone',
+      icon: <IconLock size={28} />,
+      title: 'Everyone',
+      description: 'All people using FairSharing',
+    },
+    {
+      key: 'restricted',
+      icon: <IconLock size={28} />,
+      title: 'Restricted',
+      description: 'Only members invited to this project',
+    },
+  ];
+  return (
+    <CardSelect
+      options={options}
+      value={value}
+      onChange={setValue as (v: 'everyone' | 'restricted') => void}
+    />
   );
 }
 

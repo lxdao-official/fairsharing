@@ -11,9 +11,10 @@ import {
   AppShell,
   Textarea,
   Box,
+  Radio,
 } from '@mantine/core';
 import { useState } from 'react';
-import { IconUser } from '@tabler/icons-react';
+import { IconUser, IconCircleCheckFilled } from '@tabler/icons-react';
 
 export default function CreateProjectPage() {
   return (
@@ -106,6 +107,20 @@ export default function CreateProjectPage() {
                 </Text>
                 <ValidateCardSelect />
               </Box>
+
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                  Validation Approval Strategy
+                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                </Text>
+                <Text
+                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
+                >
+                  If you need furthur customization, please contact the
+                  Fairsharing team.
+                </Text>
+                <ValidationStrategySelect />
+              </Box>
             </Stack>
           </Group>
         </Container>
@@ -177,5 +192,53 @@ function ValidateCard({
         <Text style={{ color: '#6B7280', fontSize: 14 }}>{description}</Text>
       </Box>
     </Box>
+  );
+}
+
+function ValidationStrategySelect() {
+  const [value, setValue] = useState('simple');
+  const options = [
+    {
+      key: 'simple',
+      label: 'Simple Majority',
+      desc: 'If ore than 50% of the votes go to "Approve"',
+    },
+    {
+      key: 'quorum',
+      label: 'Quorum + Majority',
+      desc: 'If the total number of votes reaches a preset quorum (e.g. 100 tokens or 20 voters) AND the majority votes for "Approve".',
+    },
+    {
+      key: 'absolute',
+      label: 'Absolute Threshold',
+      desc: 'If the "Approve" votes reach a fixed number or percentage, regardless of total turnout. E.g.: 1,000 votes for "Approve" minimum, or at least 60% Yes votes.',
+    },
+    {
+      key: 'relative',
+      label: 'Relative Majority',
+      desc: "Whichever option has the most votes wins — even if it's less than 50%.",
+    },
+  ];
+  return (
+    <Radio.Group value={value} onChange={setValue}>
+      {options.map((opt) => (
+        <Radio
+          key={opt.key}
+          value={opt.key}
+          label={
+            <span>
+              <span style={{ fontWeight: 700, fontSize: 16 }}>
+                {opt.label}:
+              </span>
+              <span style={{ color: '#222', fontSize: 16, marginLeft: 4 }}>
+                {opt.desc}
+              </span>
+            </span>
+          }
+          mb={8}
+          color="secondary"
+        />
+      ))}
+    </Radio.Group>
   );
 }

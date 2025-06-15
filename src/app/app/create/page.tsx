@@ -10,7 +10,10 @@ import {
   Stack,
   AppShell,
   Textarea,
+  Box,
 } from '@mantine/core';
+import { useState } from 'react';
+import { IconUser } from '@tabler/icons-react';
 
 export default function CreateProjectPage() {
   return (
@@ -35,14 +38,22 @@ export default function CreateProjectPage() {
             <Title order={2}>Project Information</Title>
             <Stack style={{ flex: 1 }}>
               <TextInput
-                label="Project Name"
+                label={
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>
+                    Project Name
+                  </span>
+                }
                 required
                 placeholder=""
                 radius="sm"
               />
 
               <Textarea
-                label="Description"
+                label={
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>
+                    Description
+                  </span>
+                }
                 required
                 description={
                   <span style={{ color: '#6B7280', fontSize: 16 }}>
@@ -55,7 +66,11 @@ export default function CreateProjectPage() {
               />
 
               <TextInput
-                label="Token Name"
+                label={
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>
+                    Token Name
+                  </span>
+                }
                 required
                 description={
                   <span style={{ color: '#6B7280', fontSize: 16 }}>
@@ -71,6 +86,26 @@ export default function CreateProjectPage() {
                   },
                 }}
               />
+
+              {/* Who can validate contributions? */}
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                  Who can validate contributions?
+                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                </Text>
+                <Text
+                  style={{
+                    color: '#6B7280',
+                    fontSize: 14,
+                    marginBottom: 8,
+                  }}
+                >
+                  In FairSharing, contributions must be validated before they're
+                  recorded on-chain. Select who will have the authority to
+                  validate contributions for your project.
+                </Text>
+                <ValidateCardSelect />
+              </Box>
             </Stack>
           </Group>
         </Container>
@@ -80,5 +115,67 @@ export default function CreateProjectPage() {
         <Footer />
       </AppShell.Footer>
     </AppShell>
+  );
+}
+
+function ValidateCardSelect() {
+  const [value, setValue] = useState<'specific' | 'all'>('specific');
+  return (
+    <Box style={{ display: 'flex', gap: 8 }}>
+      <ValidateCard
+        icon={<IconUser size={32} />}
+        title="Specific Members"
+        description={"Only members added as 'validator'"}
+        active={value === 'specific'}
+        onClick={() => setValue('specific')}
+      />
+      <ValidateCard
+        icon={<IconUser size={32} />}
+        title="Every Contributor"
+        description="Anyone contributed to this project"
+        active={value === 'all'}
+        onClick={() => setValue('all')}
+      />
+    </Box>
+  );
+}
+
+function ValidateCard({
+  icon,
+  title,
+  description,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      onClick={onClick}
+      style={{
+        flex: 1,
+        cursor: 'pointer',
+        border: active ? '1px solid #FFDD44' : '1px solid #e5e7eb',
+        background: active ? '#FEF6C7' : '#fff',
+        borderRadius: 8,
+        padding: '12px 16px',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        minWidth: 260,
+        maxWidth: 320,
+        transition: 'all 0.2s',
+      }}
+    >
+      <Box style={{ marginRight: 12 }}>{icon}</Box>
+      <Box style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Text style={{ fontWeight: 700, fontSize: 14 }}>{title}</Text>
+        <Text style={{ color: '#6B7280', fontSize: 14 }}>{description}</Text>
+      </Box>
+    </Box>
   );
 }

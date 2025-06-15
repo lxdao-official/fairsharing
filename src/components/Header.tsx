@@ -39,12 +39,7 @@ export function Header() {
             <TelegramIcon />
           </Link>
         </UnstyledButton>
-        <Button
-          radius="md"
-          size="md"
-          color="#222"
-          style={{ color: '#fff', background: '#222' }}
-        >
+        <Button radius="md" size="md" color="primary">
           Launch the App
         </Button>
       </Group>

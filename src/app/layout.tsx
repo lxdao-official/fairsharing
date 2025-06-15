@@ -1,17 +1,20 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
 import './globals.css';
+import { theme } from '../theme';
+import { Lexend, Roboto } from 'next/font/google';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const lexend = Lexend({
   subsets: ['latin'],
+  variable: '--font-lexend',
+  display: 'swap',
 });
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const roboto = Roboto({
   subsets: ['latin'],
+  variable: '--font-roboto',
+  weight: ['400', '500', '700'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -26,10 +29,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <MantineProvider>{children}</MantineProvider>
+      <body className={`${roboto.variable} ${lexend.variable}  antialiased`}>
+        <MantineProvider theme={theme}>{children}</MantineProvider>
       </body>
     </html>
   );

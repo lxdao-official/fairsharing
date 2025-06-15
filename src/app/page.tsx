@@ -1,12 +1,9 @@
 'use client';
 
-import { AppShell, Text, Button } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { AppShell, Button, Title } from '@mantine/core';
 import { Header } from '../components/Header';
 
 export default function Home() {
-  const [opened, { toggle }] = useDisclosure();
-
   return (
     <AppShell header={{ height: 64 }} padding="md">
       <AppShell.Header>
@@ -14,8 +11,10 @@ export default function Home() {
       </AppShell.Header>
 
       <AppShell.Main>
-        <Text>Main content</Text>
-        <Button mt="md">Click me</Button>
+        <Title order={1}>Main content</Title>
+        <Button color="secondary" mt="md">
+          Click me
+        </Button>
       </AppShell.Main>
     </AppShell>
   );

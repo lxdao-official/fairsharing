@@ -3,6 +3,7 @@
 import { AppShell, Button, Container, Title } from '@mantine/core';
 import { Header } from '../components/Header';
 import { Footer } from '@/components/Footer';
+import { HeroSection } from '@/components/HeroSection';
 
 export default function Home() {
   return (
@@ -13,10 +14,7 @@ export default function Home() {
 
       <AppShell.Main>
         <Container size="xl" style={{ maxWidth: 1280 }}>
-          <Title order={1}>Main content</Title>
-          <Button color="secondary" mt="md">
-            Click me
-          </Button>
+          <HeroSection />
         </Container>
       </AppShell.Main>
       <AppShell.Footer>

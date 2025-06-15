@@ -9,6 +9,7 @@ import {
   TextInput,
   Stack,
   AppShell,
+  Textarea,
 } from '@mantine/core';
 
 export default function CreateProjectPage() {
@@ -33,24 +34,40 @@ export default function CreateProjectPage() {
           <Group align="flex-start" gap={48}>
             <Title order={2}>Project Information</Title>
             <Stack style={{ flex: 1 }}>
-              <Text
-                fw={700}
-                style={{
-                  fontFamily:
-                    'var(--font-lexend), Arial, Helvetica, sans-serif',
-                }}
-              >
-                Project Name <span style={{ color: '#F43F5E' }}>*</span>
-              </Text>
               <TextInput
+                label="Project Name"
+                required
                 placeholder=""
+                radius="sm"
+              />
+
+              <Textarea
+                label="Description"
+                required
+                description={
+                  <span style={{ color: '#6B7280', fontSize: 16 }}>
+                    No more than 140 words
+                  </span>
+                }
+                minRows={5}
+                maxRows={8}
+                radius="sm"
+              />
+
+              <TextInput
+                label="Token Name"
+                required
+                description={
+                  <span style={{ color: '#6B7280', fontSize: 16 }}>
+                    Token representing contributions in your project (doesn't
+                    have to be an on-chain token)
+                  </span>
+                }
+                placeholder="TOKEN_NAME"
                 radius="sm"
                 styles={{
                   input: {
-                    fontSize: 18,
-                    padding: '20px 16px',
-                    background: '#fff',
-                    borderColor: '#DEE2E6',
+                    width: '160px',
                   },
                 }}
               />

@@ -17,7 +17,7 @@ export function ContributorInput({
   return (
     <Box
       style={{
-        width: 86,
+        width: 120,
         height: 32,
         border: '1px solid #E5E7EB',
         borderRadius: 8,
@@ -63,10 +63,13 @@ export function ContributorInput({
             border: '1px solid #E5E7EB',
             borderRadius: 8,
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            minWidth: 150,
+            width: 'max-content',
           },
           option: {
             fontSize: 14,
             padding: '8px 12px',
+            whiteSpace: 'nowrap',
             '&[data-selected]': {
               backgroundColor: '#F3F4F6',
               color: '#111827',

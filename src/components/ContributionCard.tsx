@@ -7,6 +7,8 @@ import {
   Badge,
   Button,
   ActionIcon,
+  Modal,
+  Alert,
 } from '@mantine/core';
 import {
   IconEdit,
@@ -16,8 +18,10 @@ import {
   IconCheck,
   IconX,
   IconMinus,
+  IconAlertCircle,
 } from '@tabler/icons-react';
 import { useState } from 'react';
+import { ContributionForm } from './ContributionForm';
 
 interface Contribution {
   id: number;
@@ -56,6 +60,7 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
     'support' | 'oppose' | 'abstain' | null
   >(initialVote);
   const [isContentHovered, setIsContentHovered] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const getStatusBadge = (status: Contribution['status']) => {
     switch (status) {
@@ -179,7 +184,12 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             <Group align="center">
               {getStatusBadge(contribution.status)}
               {contribution.isOwn && (
-                <ActionIcon variant="subtle" color="gray" size="sm">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  onClick={() => setIsEditModalOpen(true)}
+                >
                   <IconEdit size={16} />
                 </ActionIcon>
               )}
@@ -279,6 +289,48 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
           </Group>
         </Stack>
       </Group>
+
+      {/* Edit Modal */}
+      <Modal
+        opened={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Contribution"
+        size="lg"
+        centered
+      >
+        <Stack gap={16}>
+          <Alert
+            icon={<IconAlertCircle size="1rem" />}
+            title="You're editing this contribution."
+            color="yellow"
+            variant="light"
+          >
+            Submitting changes will restart the vote and erase all previous
+            votes.
+          </Alert>
+
+          <ContributionForm
+            isEditMode={true}
+            initialData={{
+              contribution: contribution.content,
+              hours: contribution.hours,
+              contributor: contribution.contributor.name,
+              date: [new Date(contribution.date.replace(/\./g, '-')), null] as [
+                Date | null,
+                Date | null,
+              ],
+              hashtag: contribution.hashtag,
+              reward: contribution.lxp,
+            }}
+            onSubmit={(data) => {
+              console.log('Updating contribution:', data);
+              setIsEditModalOpen(false);
+              // Here you would implement the actual update logic
+            }}
+            onCancel={() => setIsEditModalOpen(false)}
+          />
+        </Stack>
+      </Modal>
     </Box>
   );
 }

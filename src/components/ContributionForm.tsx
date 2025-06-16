@@ -14,34 +14,66 @@ import { DatePickerInput } from '@/components/DatePickerInput';
 import { HashtagInput } from '@/components/HashtagInput';
 import { useState } from 'react';
 
-export function ContributionForm() {
-  const [contribution, setContribution] = useState('');
-  const [hours, setHours] = useState<number | string>('');
-  const [contributor, setContributor] = useState('char');
-  const [date, setDate] = useState<[Date | null, Date | null]>([
-    new Date(),
-    null,
-  ]);
-  const [hashtag, setHashtag] = useState('');
-  const [reward, setReward] = useState<number | string>(0);
+interface ContributionFormData {
+  contribution: string;
+  hours: number;
+  contributor: string;
+  date: [Date | null, Date | null];
+  hashtag: string;
+  reward: number;
+}
+
+interface ContributionFormProps {
+  isEditMode?: boolean;
+  initialData?: Partial<ContributionFormData>;
+  onSubmit?: (data: ContributionFormData) => void;
+  onCancel?: () => void;
+}
+
+export function ContributionForm({
+  isEditMode = false,
+  initialData = {},
+  onSubmit,
+  onCancel,
+}: ContributionFormProps) {
+  const [contribution, setContribution] = useState(
+    initialData.contribution || '',
+  );
+  const [hours, setHours] = useState<number | string>(initialData.hours || '');
+  const [contributor, setContributor] = useState(
+    initialData.contributor || 'char',
+  );
+  const [date, setDate] = useState<[Date | null, Date | null]>(
+    initialData.date || [new Date(), null],
+  );
+  const [hashtag, setHashtag] = useState(initialData.hashtag || '');
+  const [reward, setReward] = useState<number | string>(
+    initialData.reward || 0,
+  );
 
   const handleSubmit = () => {
-    console.log('Submitting contribution:', {
+    const formData: ContributionFormData = {
       contribution,
-      hours,
+      hours: typeof hours === 'number' ? hours : Number(hours) || 0,
       contributor,
       date,
       hashtag,
-      reward,
-    });
+      reward: typeof reward === 'number' ? reward : Number(reward) || 0,
+    };
+
+    if (onSubmit) {
+      onSubmit(formData);
+    } else {
+      console.log('Submitting contribution:', formData);
+    }
   };
 
   return (
     <Box
       style={{
-        borderRadius: '16px',
-        border: '1px solid #FFDD44',
-        padding: '20px',
+        borderRadius: isEditMode ? '0px' : '16px',
+        border: isEditMode ? 'none' : '1px solid #FFDD44',
+        padding: isEditMode ? '0px' : '20px',
         width: '100%',
         maxWidth: '100%',
       }}
@@ -133,23 +165,58 @@ export function ContributionForm() {
             <Text>LXP</Text>
           </Group>
 
-          <Button
-            onClick={handleSubmit}
-            size="md"
-            radius="md"
-            style={{
-              backgroundColor: '#FFDD44',
-              color: '#000',
-              fontWeight: 600,
-              border: 'none',
-              '&:hover': {
-                backgroundColor: '#FDD835',
-              },
-              paddingInline: '32px',
-            }}
-          >
-            Submit
-          </Button>
+          {isEditMode ? (
+            <Group gap={12}>
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={onCancel}
+                size="md"
+                radius="md"
+                style={{
+                  fontWeight: 600,
+                  paddingInline: '24px',
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                size="md"
+                radius="md"
+                style={{
+                  backgroundColor: '#FFDD44',
+                  color: '#000',
+                  fontWeight: 600,
+                  border: 'none',
+                  '&:hover': {
+                    backgroundColor: '#FDD835',
+                  },
+                  paddingInline: '32px',
+                }}
+              >
+                Submit
+              </Button>
+            </Group>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              size="md"
+              radius="md"
+              style={{
+                backgroundColor: '#FFDD44',
+                color: '#000',
+                fontWeight: 600,
+                border: 'none',
+                '&:hover': {
+                  backgroundColor: '#FDD835',
+                },
+                paddingInline: '32px',
+              }}
+            >
+              Submit
+            </Button>
+          )}
         </Group>
       </Stack>
     </Box>

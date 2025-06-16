@@ -11,9 +11,11 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@mantine/core": "^8.1.0",
+    "@mantine/dates": "^8.1.0",
     "@mantine/hooks": "^8.1.0",
     "@tabler/icons-react": "^3.34.0",
     "connectkit": "^1.9.1",
+    "dayjs": "^1.11.13",
     "lodash.debounce": "^4.0.8",
     "next": "15.3.3",
     "react": "^18.3.1",

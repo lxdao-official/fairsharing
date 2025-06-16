@@ -5,6 +5,7 @@ import '@mantine/charts/styles.css';
 import './globals.css';
 import { Lexend, Roboto } from 'next/font/google';
 import { Web3Provider } from '../components/Web3Provider';
+import { TRPCProvider } from '../components/TRPCProvider';
 
 const lexend = Lexend({
   subsets: ['latin'],
@@ -31,7 +32,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${roboto.variable} ${lexend.variable}  antialiased`}>
-        <Web3Provider>{children}</Web3Provider>
+        <TRPCProvider>
+          <Web3Provider>{children}</Web3Provider>
+        </TRPCProvider>
       </body>
     </html>
   );

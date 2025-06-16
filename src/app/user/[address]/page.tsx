@@ -17,6 +17,8 @@ import {
   Divider,
   SimpleGrid,
   Tooltip,
+  Tabs,
+  Pagination,
 } from '@mantine/core';
 import {
   IconLink,
@@ -26,8 +28,10 @@ import {
   IconCopy,
   IconExternalLink,
 } from '@tabler/icons-react';
+import { useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProjectCard } from '../../../components/ProjectCard';
+import { ContributionCard } from '../../../components/ContributionCard';
 
 // Mock projects data for ProjectCard
 const mockActiveProjects = [
@@ -70,6 +74,110 @@ const mockActiveProjects = [
     contributions: '280',
     pieBakers: '35',
     logo: '/homepage/step2-icon.png',
+  },
+];
+
+// Mock contributions data for My Contributions section
+const mockUserContributions = [
+  {
+    id: 1,
+    contributor: {
+      name: 'Bruce Xu',
+      avatar: '/homepage/step2-icon.png',
+    },
+    status: 'voting' as const,
+    content:
+      'I reviewed the Fairsharing wireframe and made changes to the design.',
+    hours: 2,
+    date: '2025.03.29',
+    hashtag: 'DevWG',
+    lxp: 20,
+    votes: {
+      support: 8,
+      oppose: 2,
+      abstain: 1,
+    },
+    isOwn: true,
+  },
+  {
+    id: 2,
+    contributor: {
+      name: 'Bruce Xu',
+      avatar: '/homepage/step2-icon.png',
+    },
+    status: 'pass' as const,
+    content:
+      'AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation. Space talk and mentoring session.',
+    hours: 5.5,
+    date: '2025.03.28',
+    hashtag: 'AIHack',
+    lxp: 55,
+    votes: {
+      support: 15,
+      oppose: 3,
+      abstain: 2,
+    },
+    isOwn: true,
+  },
+  {
+    id: 3,
+    contributor: {
+      name: 'Bruce Xu',
+      avatar: '/homepage/step2-icon.png',
+    },
+    status: 'pass' as const,
+    content:
+      'Developed the user profile page and implemented tooltip functionality for project visualization.',
+    hours: 8,
+    date: '2025.03.27',
+    hashtag: 'DevWG',
+    lxp: 80,
+    votes: {
+      support: 12,
+      oppose: 1,
+      abstain: 0,
+    },
+    isOwn: true,
+  },
+  {
+    id: 4,
+    contributor: {
+      name: 'Bruce Xu',
+      avatar: '/homepage/step2-icon.png',
+    },
+    status: 'fail' as const,
+    content:
+      'Created comprehensive tutorial content for smart contract development.',
+    hours: 6,
+    date: '2025.03.26',
+    hashtag: 'Education',
+    lxp: 60,
+    votes: {
+      support: 4,
+      oppose: 8,
+      abstain: 3,
+    },
+    isOwn: true,
+  },
+  {
+    id: 5,
+    contributor: {
+      name: 'Bruce Xu',
+      avatar: '/homepage/step2-icon.png',
+    },
+    status: 'voting' as const,
+    content:
+      'Code review and security audit for the new yield farming feature.',
+    hours: 4,
+    date: '2025.03.25',
+    hashtag: 'Security',
+    lxp: 40,
+    votes: {
+      support: 6,
+      oppose: 2,
+      abstain: 1,
+    },
+    isOwn: true,
   },
 ];
 
@@ -135,6 +243,31 @@ export default function UserPage({ params }: UserPageProps) {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
+
+  // My Contributions state
+  const [activeContributionTab, setActiveContributionTab] = useState('all');
+  const [currentContributionPage, setCurrentContributionPage] = useState(1);
+  const [itemsPerPage] = useState(6);
+
+  // Filter contributions based on active tab
+  const filteredContributions = mockUserContributions.filter((contribution) => {
+    if (activeContributionTab === 'all') return true;
+    if (activeContributionTab === 'validating')
+      return contribution.status === 'voting';
+    if (activeContributionTab === 'on-chain')
+      return contribution.status === 'pass' || contribution.status === 'fail';
+    if (activeContributionTab === 'failed')
+      return contribution.status === 'fail';
+    return true;
+  });
+
+  const totalContributions = 560;
+  const totalPages = Math.ceil(filteredContributions.length / itemsPerPage);
+  const startIndex = (currentContributionPage - 1) * itemsPerPage;
+  const paginatedContributions = filteredContributions.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
 
   return (
     <Layout>
@@ -297,6 +430,112 @@ export default function UserPage({ params }: UserPageProps) {
                   />
                 ))}
               </SimpleGrid>
+
+              {/* My Contributions Section */}
+              <Stack gap={24} mt={32}>
+                <Group justify="space-between" align="baseline">
+                  <Group gap={16} align="baseline">
+                    <Title order={2} size={28} fw={700}>
+                      {totalContributions} Contributions in the Last Year
+                    </Title>
+                  </Group>
+                </Group>
+
+                {/* Tabs */}
+                <Tabs
+                  value={activeContributionTab}
+                  onChange={(value) => setActiveContributionTab(value || 'all')}
+                  variant="pills"
+                >
+                  <Tabs.List>
+                    <Tabs.Tab
+                      value="all"
+                      style={{
+                        backgroundColor:
+                          activeContributionTab === 'all'
+                            ? '#FFDD44'
+                            : 'transparent',
+                        color: '#000000',
+                        borderRadius: '24px',
+                        padding: '8px 24px',
+                      }}
+                    >
+                      All
+                    </Tabs.Tab>
+                    <Tabs.Tab
+                      value="validating"
+                      style={{
+                        backgroundColor:
+                          activeContributionTab === 'validating'
+                            ? '#FFDD44'
+                            : 'transparent',
+                        color: '#000000',
+                        borderRadius: '24px',
+                        padding: '8px 24px',
+                      }}
+                    >
+                      Validating
+                    </Tabs.Tab>
+                    <Tabs.Tab
+                      value="on-chain"
+                      style={{
+                        backgroundColor:
+                          activeContributionTab === 'on-chain'
+                            ? '#FFDD44'
+                            : 'transparent',
+                        color: '#000000',
+                        borderRadius: '24px',
+                        padding: '8px 24px',
+                      }}
+                    >
+                      On-Chain
+                    </Tabs.Tab>
+                    <Tabs.Tab
+                      value="failed"
+                      style={{
+                        backgroundColor:
+                          activeContributionTab === 'failed'
+                            ? '#FFDD44'
+                            : 'transparent',
+                        color: '#000000',
+                        borderRadius: '24px',
+                        padding: '8px 24px',
+                      }}
+                    >
+                      Failed
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Tabs>
+
+                {/* Contribution Cards */}
+                <Box
+                  style={{
+                    backgroundColor: '#F9F9F9',
+                    borderRadius: 24,
+                    padding: 8,
+                  }}
+                >
+                  <SimpleGrid cols={2} spacing={8}>
+                    {paginatedContributions.map((contribution) => (
+                      <ContributionCard
+                        key={contribution.id}
+                        contribution={contribution}
+                      />
+                    ))}
+                  </SimpleGrid>
+
+                  {totalPages > 1 && (
+                    <Group justify="center" mt={16}>
+                      <Pagination
+                        value={currentContributionPage}
+                        onChange={setCurrentContributionPage}
+                        total={totalPages}
+                        size="sm"
+                      />
+                    </Group>
+                  )}
+                </Box>
+              </Stack>
             </Stack>
           </Box>
         </Group>

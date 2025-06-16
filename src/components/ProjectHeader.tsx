@@ -32,8 +32,8 @@ export function ProjectHeader({ projectName }: ProjectHeaderProps) {
             </Button>
           </Group>
         </Group>
-        <Group>
-          <Stack style={{ width: 340 }}>
+        <Group display="flex" gap={16} align="flex-start">
+          <Stack style={{ width: 340, flexShrink: 0 }}>
             <Text size="md" style={{ maxWidth: 600 }}>
               LXDAO is an R&D-focused DAO dedicated to building an Infinite
               Cycle that supports valuable Public Goods and open-source
@@ -77,7 +77,9 @@ export function ProjectHeader({ projectName }: ProjectHeaderProps) {
               </Button>
             </Group>
           </Stack>
-          <ContributionForm />
+          <Box style={{ flex: 1 }}>
+            <ContributionForm />
+          </Box>
         </Group>
       </Stack>
     </Box>

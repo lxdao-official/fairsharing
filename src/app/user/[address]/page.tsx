@@ -2,19 +2,14 @@
 
 import {
   Container,
-  Grid,
   Stack,
   Title,
   Text,
   Avatar,
   Group,
-  Button,
-  Card,
   Box,
-  Badge,
   ActionIcon,
   Anchor,
-  Divider,
   SimpleGrid,
   Tooltip,
   Tabs,
@@ -233,13 +228,7 @@ const mockUser = {
   },
 };
 
-interface UserPageProps {
-  params: {
-    address: string;
-  };
-}
-
-export default function UserPage({ params }: UserPageProps) {
+export default function UserPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };

@@ -1,6 +1,6 @@
 'use client';
 
-import { Group, Button, Text, rem, UnstyledButton } from '@mantine/core';
+import { Group, Button, UnstyledButton } from '@mantine/core';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ConnectWallet } from './ConnectWallet';

@@ -5,7 +5,6 @@ import {
   Avatar,
   Text,
   Badge,
-  Button,
   ActionIcon,
   Modal,
   Alert,

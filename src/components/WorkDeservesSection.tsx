@@ -39,7 +39,7 @@ export function WorkDeservesSection() {
                 lineHeight: 1.4,
               }}
             >
-              Let's stop the chaos of spreadsheets and start doing better.
+              Let&apos;s stop the chaos of spreadsheets and start doing better.
             </Text>
           </Stack>
         </Grid.Col>

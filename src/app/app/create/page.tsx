@@ -78,8 +78,8 @@ export default function CreateProjectPage() {
                 required
                 description={
                   <span style={{ color: '#6B7280', fontSize: 16 }}>
-                    Token representing contributions in your project (doesn't
-                    have to be an on-chain token)
+                    Token representing contributions in your project
+                    (doesn&apos;t have to be an on-chain token)
                   </span>
                 }
                 placeholder="TOKEN_NAME"
@@ -104,9 +104,9 @@ export default function CreateProjectPage() {
                     marginBottom: 8,
                   }}
                 >
-                  In FairSharing, contributions must be validated before they're
-                  recorded on-chain. Select who will have the authority to
-                  validate contributions for your project.
+                  In FairSharing, contributions must be validated before
+                  they&apos;re recorded on-chain. Select who will have the
+                  authority to validate contributions for your project.
                 </Text>
                 <ValidateCardSelect />
               </Box>
@@ -161,9 +161,10 @@ export default function CreateProjectPage() {
                 <Text
                   style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
                 >
-                  Used to calculate contribution value as 'hours worked × hourly
-                  rate'. You can later set custom rates for each contributor. If
-                  left blank or set to 0, contributors can claim tokens freely.
+                  Used to calculate contribution value as &apos;hours worked ×
+                  hourly rate&apos;. You can later set custom rates for each
+                  contributor. If left blank or set to 0, contributors can claim
+                  tokens freely.
                 </Text>
                 <Group align="center" mt={8}>
                   <TextInput

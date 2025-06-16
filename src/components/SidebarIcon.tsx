@@ -37,6 +37,7 @@ export function SidebarIcon({
       {isActive && (
         <Image
           src="/icons/active-icon.png"
+          alt="Active indicator"
           style={{
             width: 6,
             height: 32,

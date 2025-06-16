@@ -1,7 +1,6 @@
 import {
   Stack,
   Title,
-  Text,
   Tabs,
   Select,
   Group,
@@ -135,7 +134,7 @@ export function ContributionsSection() {
     null,
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const itemsPerPage = 20;
 
   // Filter contributions based on active tab and selected contributor
   const filteredContributions = mockContributions.filter((contribution) => {

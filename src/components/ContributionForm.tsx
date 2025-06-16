@@ -2,7 +2,6 @@ import {
   Box,
   Textarea,
   Group,
-  TextInput,
   Button,
   Text,
   Stack,
@@ -102,7 +101,6 @@ export function ContributionForm({
             <HoursInput
               value={typeof hours === 'number' ? hours : undefined}
               onChange={setHours}
-              placeholder="0"
             />
           </Box>
 

@@ -4,14 +4,9 @@ import { IconClock } from '@tabler/icons-react';
 interface HoursInputProps {
   value?: number;
   onChange?: (value: number | string) => void;
-  placeholder?: string;
 }
 
-export function HoursInput({
-  value,
-  onChange,
-  placeholder = 'Hours',
-}: HoursInputProps) {
+export function HoursInput({ value, onChange }: HoursInputProps) {
   return (
     <Box
       style={{

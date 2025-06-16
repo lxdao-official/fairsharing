@@ -1,4 +1,4 @@
-import { Box, Grid, Stack, Text, Title, Badge } from '@mantine/core';
+import { Box, Grid, Stack, Text, Title } from '@mantine/core';
 import Image from 'next/image';
 
 export function RewardsDistributionSection() {

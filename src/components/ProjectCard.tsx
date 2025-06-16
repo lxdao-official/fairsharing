@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Group, Text, Button, Avatar, Stack, rem } from '@mantine/core';
+import { Card, Group, Text, Button, Avatar, Stack } from '@mantine/core';
 import {
   IconArrowRight,
   IconBookmark,

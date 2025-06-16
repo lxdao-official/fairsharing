@@ -37,16 +37,16 @@ function MemberManagement() {
     setMembers([...members, newMember]);
   };
 
-  const updateMember = (address: string, field: keyof Member, value: any) => {
+  const updateMember = (
+    address: string,
+    field: keyof Member,
+    value: string | boolean,
+  ) => {
     setMembers(
       members.map((member) =>
         member.address === address ? { ...member, [field]: value } : member,
       ),
     );
-  };
-
-  const removeMember = (address: string) => {
-    setMembers(members.filter((member) => member.address !== address));
   };
 
   return (

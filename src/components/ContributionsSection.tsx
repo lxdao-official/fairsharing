@@ -243,45 +243,16 @@ export function ContributionsSection() {
             />
           ))}
         </SimpleGrid>
-      </Box>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <Group justify="space-between" align="center" mt={32}>
-          <Group gap={16} align="center">
-            <Text size="sm" c="gray.6">
-              Rows per page:
-            </Text>
-            <Select
-              data={['20', '50', '100']}
-              value={itemsPerPage.toString()}
-              onChange={(value) => {
-                setItemsPerPage(Number(value) || 20);
-                setCurrentPage(1);
-              }}
-              w={80}
-              size="sm"
-            />
-          </Group>
-
-          <Group gap={16} align="center">
-            <Text size="sm" c="gray.6">
-              {startIndex + 1}-
-              {Math.min(
-                startIndex + itemsPerPage,
-                filteredContributions.length,
-              )}{' '}
-              of {filteredContributions.length}
-            </Text>
-            <Pagination
-              value={currentPage}
-              onChange={setCurrentPage}
-              total={totalPages}
-              size="sm"
-            />
-          </Group>
+        <Group mt={16}>
+          <Pagination
+            value={currentPage}
+            onChange={setCurrentPage}
+            total={totalPages}
+            size="sm"
+          />
         </Group>
-      )}
+      </Box>
     </Stack>
   );
 }

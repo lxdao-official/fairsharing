@@ -17,7 +17,6 @@ export function ContributorInput({
   return (
     <Box
       style={{
-        width: 120,
         height: 32,
         border: '1px solid #E5E7EB',
         borderRadius: 8,
@@ -46,19 +45,12 @@ export function ContributorInput({
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
-            width: '100%',
-            height: 'auto',
-            minHeight: 'auto',
+            width: '8ch',
             '&:focus': {
               outline: 'none',
             },
           },
-          wrapper: {
-            width: '100%',
-          },
-          root: {
-            width: '100%',
-          },
+
           dropdown: {
             border: '1px solid #E5E7EB',
             borderRadius: 8,

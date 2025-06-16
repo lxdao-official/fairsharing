@@ -39,6 +39,11 @@ export function DatePickerInput({
         allowSingleDateInRange
         placeholder={placeholder}
         leftSection={<IconCalendar size={16} color="#6B7280" />}
+        leftSectionProps={{
+          style: {
+            width: '16px',
+          },
+        }}
         presets={[
           {
             value: [dayjs().subtract(1, 'day').format('YYYY-MM-DD'), null],
@@ -61,23 +66,16 @@ export function DatePickerInput({
         styles={{
           input: {
             border: 'none',
-            padding: '0 8px',
+
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
-            width: '100%',
-            height: 32,
-            minHeight: 32,
+            width: '20ch',
             '&:focus': {
               outline: 'none',
             },
           },
-          wrapper: {
-            width: '100%',
-          },
-          root: {
-            width: '100%',
-          },
+
           section: {
             marginLeft: 8,
           },

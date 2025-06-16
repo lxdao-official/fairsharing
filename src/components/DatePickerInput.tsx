@@ -23,6 +23,7 @@ export function DatePickerInput({
         backgroundColor: '#fff',
         display: 'flex',
         alignItems: 'center',
+        position: 'relative',
       }}
     >
       <MantineDatePickerInput
@@ -34,7 +35,6 @@ export function DatePickerInput({
           ];
           onChange?.(dates);
         }}
-        valueFormat="MMM DD"
         type="range"
         allowSingleDateInRange
         placeholder={placeholder}
@@ -46,41 +46,86 @@ export function DatePickerInput({
         }}
         presets={[
           {
-            value: [dayjs().subtract(1, 'day').format('YYYY-MM-DD'), null],
+            value: [
+              dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
+              dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
+            ],
             label: 'Yesterday',
           },
-          { value: [dayjs().format('YYYY-MM-DD'), null], label: 'Today' },
           {
-            value: [dayjs().add(1, 'day').format('YYYY-MM-DD'), null],
+            value: [dayjs().format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')],
+            label: 'Today',
+          },
+          {
+            value: [
+              dayjs().add(1, 'day').format('YYYY-MM-DD'),
+              dayjs().add(1, 'day').format('YYYY-MM-DD'),
+            ],
             label: 'Tomorrow',
           },
           {
-            value: [dayjs().subtract(1, 'week').format('YYYY-MM-DD'), null],
+            value: [
+              dayjs().subtract(1, 'week').format('YYYY-MM-DD'),
+              dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
+            ],
             label: 'Last week',
           },
           {
-            value: [dayjs().subtract(1, 'month').format('YYYY-MM-DD'), null],
+            value: [
+              dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
+              dayjs().subtract(1, 'day').format('YYYY-MM-DD'),
+            ],
             label: 'Last month',
           },
         ]}
+        valueFormat="MMM DD"
         styles={{
           input: {
             border: 'none',
-
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
             width: '20ch',
+            color:
+              value &&
+              value[0] &&
+              value[1] &&
+              dayjs(value[0]).isSame(dayjs(value[1]), 'day')
+                ? 'transparent'
+                : 'inherit',
             '&:focus': {
               outline: 'none',
             },
+            '&::placeholder': {
+              color: '#9CA3AF',
+            },
           },
-
           section: {
             marginLeft: 8,
           },
         }}
       />
+      {/* Custom display overlay for same-day ranges */}
+      {value &&
+        value[0] &&
+        value[1] &&
+        dayjs(value[0]).isSame(dayjs(value[1]), 'day') && (
+          <div
+            style={{
+              position: 'absolute',
+              left: '36px', // Account for icon + margin
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 14,
+              fontWeight: 500,
+              color: '#000',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            {dayjs(value[0]).format('MMM DD')}
+          </div>
+        )}
     </Box>
   );
 }

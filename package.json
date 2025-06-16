@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -14,16 +17,20 @@
     "@mantine/core": "^8.1.0",
     "@mantine/dates": "^8.1.0",
     "@mantine/hooks": "^8.1.0",
+    "@prisma/client": "^6.9.0",
     "@tabler/icons-react": "^3.34.0",
     "@tanstack/react-query": "^5.80.7",
     "@trpc/client": "^11.4.1",
     "@trpc/next": "^11.4.1",
     "@trpc/react-query": "^11.4.1",
     "@trpc/server": "^11.4.1",
+    "@types/pg": "^8.15.4",
     "connectkit": "^1.9.1",
     "dayjs": "^1.11.13",
     "lodash.debounce": "^4.0.8",
     "next": "15.3.3",
+    "pg": "^8.16.0",
+    "prisma": "^6.9.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.3",
@@ -41,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
     "tailwindcss": "^4",
+    "tsx": "^4.20.3",
     "typescript": "^5"
   }
 }

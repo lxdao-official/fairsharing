@@ -19,7 +19,7 @@ export default function ProjectPage() {
 
   return (
     <Layout sidebar={<ProjectSidebar currentProject={projectName} />}>
-      <Container size="xl" style={{ maxWidth: 1200 }} pt={40}>
+      <Container size="xl" style={{ maxWidth: 1200 }} pt={40} pb={60}>
         <Stack gap={64}>
           <ProjectHeader projectName={displayName} />
           <ContributionsSection />

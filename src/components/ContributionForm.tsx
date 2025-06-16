@@ -116,8 +116,10 @@ export function ContributionForm() {
               onChange={setReward}
               min={0}
               hideControls
-              width="60px"
               styles={{
+                root: {
+                  width: '60px',
+                },
                 input: {
                   border: 'none',
                   borderRadius: '8px',

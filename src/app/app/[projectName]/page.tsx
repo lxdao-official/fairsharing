@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout';
 import { ProjectSidebar } from '@/components/ProjectSidebar';
 import { ProjectHeader } from '@/components/ProjectHeader';
 import { ContributionsSection } from '@/components/ContributionsSection';
+import { ContributorsSection } from '@/components/ContributorsSection';
 import { useParams } from 'next/navigation';
 
 export default function ProjectPage() {
@@ -23,6 +24,7 @@ export default function ProjectPage() {
         <Stack gap={64}>
           <ProjectHeader projectName={displayName} />
           <ContributionsSection />
+          <ContributorsSection />
         </Stack>
       </Container>
     </Layout>

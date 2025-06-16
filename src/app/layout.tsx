@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
+import '@mantine/charts/styles.css';
 import './globals.css';
 import { Lexend, Roboto } from 'next/font/google';
 import { Web3Provider } from '../components/Web3Provider';

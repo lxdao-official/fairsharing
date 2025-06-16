@@ -34,7 +34,7 @@ export function DatePickerInput({
           ];
           onChange?.(dates);
         }}
-        valueFormat="YYYY-MM-DD"
+        valueFormat="MMM DD"
         type="range"
         allowSingleDateInRange
         placeholder={placeholder}

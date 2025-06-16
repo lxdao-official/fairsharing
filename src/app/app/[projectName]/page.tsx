@@ -1,9 +1,10 @@
 'use client';
 
-import { Container } from '@mantine/core';
+import { Container, Stack } from '@mantine/core';
 import { Layout } from '@/components/Layout';
 import { ProjectSidebar } from '@/components/ProjectSidebar';
 import { ProjectHeader } from '@/components/ProjectHeader';
+import { ContributionsSection } from '@/components/ContributionsSection';
 import { useParams } from 'next/navigation';
 
 export default function ProjectPage() {
@@ -19,7 +20,10 @@ export default function ProjectPage() {
   return (
     <Layout sidebar={<ProjectSidebar currentProject={projectName} />}>
       <Container size="xl" style={{ maxWidth: 1200 }} pt={40}>
-        <ProjectHeader projectName={displayName} />
+        <Stack gap={64}>
+          <ProjectHeader projectName={displayName} />
+          <ContributionsSection />
+        </Stack>
       </Container>
     </Layout>
   );

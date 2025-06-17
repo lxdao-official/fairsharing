@@ -1,0 +1,238 @@
+# FairSharing - Web3 Contribution Management DApp
+
+## Project Overview
+
+FairSharing is a decentralized application (DApp) for managing and validating project contributions. It enables teams to record, validate, and reward collaborative work through blockchain-connected wallet authentication and peer validation systems.
+
+## Tech Stack & Architecture
+
+### Core Technologies
+
+- **Framework**: Next.js 15.3.3 with App Router
+- **Language**: TypeScript 5 (strict mode)
+- **Database**: PostgreSQL with Prisma ORM 6.9.0
+- **API**: tRPC 11.4.1 for type-safe APIs
+- **Styling**: TailwindCSS 4 + Mantine UI 8.1.0
+- **Web3**: Wagmi 2.15.6 + ConnectKit 1.9.1 + Viem 2.31.2
+- **State Management**: React Query (@tanstack/react-query 5.80.7)
+
+### Architecture Patterns
+
+- **Database**: Multi-table relational design with soft deletes
+- **Authentication**: JWT + Wallet signature hybrid auth
+- **API**: tRPC procedures with Zod validation
+- **Components**: Mantine UI components with custom styling
+- **State**: React Query for server state, React hooks for client state
+
+## Code Style & Conventions
+
+### General Guidelines
+
+- Use TypeScript strictly - no `any` types unless absolutely necessary
+- Prefer functional components with hooks over class components
+- Use consistent naming: camelCase for variables/functions, PascalCase for components
+- Keep components small and focused on single responsibility
+- Use meaningful variable names that describe intent
+
+### File Organization
+
+```
+src/
+├── app/              # Next.js App Router pages
+├── components/       # Reusable UI components
+├── server/           # tRPC server setup and routers
+├── lib/              # Utility functions and configurations
+└── utils/            # Client-side utilities
+```
+
+### Component Guidelines
+
+- Use Mantine components as base, extend with TailwindCSS for custom styling
+- Always include proper TypeScript interfaces for props
+- Use React.forwardRef for components that need ref forwarding
+- Prefer composition over props drilling - use React Context when needed
+
+### Database & Prisma
+
+- Use soft deletes (deletedAt field) instead of hard deletes
+- Follow the established schema patterns with proper indexing
+- Use database-level constraints and validation
+- Always include createdAt/updatedAt timestamps
+- Use descriptive table and column names
+
+### tRPC Procedures
+
+- Group related procedures in routers (user, project, contribution, etc.)
+- Use Zod schemas for input validation
+- Include proper error handling with meaningful messages
+- Use middleware for authentication and authorization
+- Return typed responses with consistent structure
+- Build all APIs based on tRPC, and put the APIs in the correct folder
+
+### Web3 Integration
+
+- Use Wagmi hooks for wallet interactions
+- Implement proper error handling for wallet operations
+- Use Viem for low-level blockchain interactions
+- Always validate wallet signatures server-side
+- Handle network switching and connection states gracefully
+
+### Authentication
+
+- Implement hybrid JWT + wallet signature authentication
+- Store JWT tokens securely (consider httpOnly cookies for production)
+- Handle token expiration gracefully with auto-refresh
+- Validate wallet signatures using ethers.js/viem on backend
+- Use middleware pattern for protecting routes
+
+## Database Schema Patterns
+
+### Multi-Contributor Support
+
+- Use ContributionContributor junction table for many-to-many relationships
+- Support individual hour tracking and point allocation per contributor
+- Maintain data consistency between total and individual contributions
+
+### Validation System
+
+- Implement contribution status flow: VALIDATING → PASSED/FAILED → ON_CHAIN
+- Use Vote model for peer validation with PASS/FAIL/SKIP options
+- Support different validation strategies per project
+
+### Project Management
+
+- Support multiple member roles with array-based permissions
+- Use project keys for human-readable identifiers
+- Implement proper cascading deletes with onDelete: Cascade
+
+## API Design Patterns
+
+### Input Validation
+
+```typescript
+// Use Zod for comprehensive validation
+const createContributionSchema = z.object({
+  content: z.string().min(10).max(1000),
+  hours: z.number().positive().optional(),
+  projectId: z.string().cuid(),
+  contributorIds: z.array(z.string().cuid()).min(1),
+});
+```
+
+### Error Handling
+
+```typescript
+// Use tRPC error handling with proper error codes
+throw new TRPCError({
+  code: 'BAD_REQUEST',
+  message: 'Invalid contribution data',
+});
+```
+
+### Response Structure
+
+```typescript
+// Consistent response patterns
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+```
+
+## Security Best Practices
+
+### Wallet Authentication
+
+- Always verify signatures server-side
+- Use nonces to prevent replay attacks
+- Implement proper session management
+- Validate wallet address format and checksums
+
+### Data Validation
+
+- Validate all inputs using Zod schemas
+- Sanitize user-generated content
+- Use parameterized queries (Prisma handles this)
+- Implement rate limiting for API endpoints
+
+### Authorization
+
+- Check project membership before allowing actions
+- Validate user roles and permissions
+- Use middleware for consistent auth checks
+- Implement proper error messages without information leakage
+
+## Performance Considerations
+
+### Database Optimization
+
+- Use the established indexes for common query patterns
+- Implement proper pagination for large datasets
+- Use select statements to limit returned fields
+- Consider using database views for complex queries
+
+### Frontend Optimization
+
+- Use React Query for efficient caching and synchronization
+- Implement proper loading states and error boundaries
+- Use Next.js Image component for image optimization
+- Lazy load components and routes when possible
+
+## Development Workflow
+
+### Code Quality
+
+- Use ESLint and TypeScript compiler for code quality
+- Write meaningful commit messages
+- Use consistent formatting (Prettier recommended)
+- Add JSDoc comments for complex functions
+
+### Testing Approach
+
+- Focus on critical business logic testing
+- Test wallet integration flows thoroughly
+- Use proper mocking for external services
+- Test error scenarios and edge cases
+
+### Environment Management
+
+- Use environment variables for configuration
+- Never commit sensitive keys or tokens
+- Use different configs for development/staging/production
+- Document all required environment variables
+
+## Common Patterns to Follow
+
+### Component Creation
+
+```typescript
+interface ComponentProps {
+  // Always define proper interfaces
+}
+
+const Component: React.FC<ComponentProps> = ({ prop }) => {
+  // Use proper TypeScript typing
+  return <div>Content</div>;
+};
+```
+
+### Database Queries
+
+```typescript
+// Use proper error handling and typing
+const contribution = await db.contribution.create({
+  data: {
+    // Properly typed data
+  },
+  include: {
+    // Include related data efficiently
+    contributors: {
+      include: { contributor: true },
+    },
+  },
+});
+```
+
+Remember: This is a Web3 DApp focused on contribution management and validation. Always consider the blockchain context, wallet interactions, and decentralized nature when making architectural decisions.

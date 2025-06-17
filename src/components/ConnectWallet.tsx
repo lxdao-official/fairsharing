@@ -13,8 +13,8 @@ export function ConnectWallet() {
   const [isSigningAttempted, setIsSigningAttempted] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // tRPC mutations
-  const getNonceMutation = trpc.user.getNonce.useMutation();
+  // tRPC hooks
+  const utils = trpc.useUtils();
   const authenticateMutation = trpc.user.authenticate.useMutation();
 
   // Handle automatic authentication attempt when wallet connects
@@ -57,7 +57,7 @@ export function ConnectWallet() {
 
     try {
       // Get nonce
-      const nonceResult = await getNonceMutation.mutateAsync({
+      const nonceResult = await utils.user.getNonce.fetch({
         walletAddress,
       });
 

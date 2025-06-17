@@ -4,7 +4,7 @@ import { AuthSession } from '@/lib/auth';
 
 // localStorage keys
 const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'access_token',
+  SESSION: 'fairsharing_session',
 } as const;
 
 export interface UseAuthReturn {
@@ -27,7 +27,7 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     const initAuth = () => {
       try {
-        const savedSession = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        const savedSession = localStorage.getItem(STORAGE_KEYS.SESSION);
         if (savedSession) {
           const parsed = JSON.parse(savedSession) as AuthSession;
 
@@ -35,12 +35,12 @@ export function useAuth(): UseAuthReturn {
           if (parsed.expiresAt > Date.now()) {
             setSessionState(parsed);
           } else {
-            localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.SESSION);
           }
         }
       } catch (error) {
         console.error('Failed to parse saved session:', error);
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
       } finally {
         setIsLoading(false);
       }
@@ -62,13 +62,13 @@ export function useAuth(): UseAuthReturn {
   }, [isConnected, address, session]);
 
   const setSession = (newSession: AuthSession) => {
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, JSON.stringify(newSession));
+    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(newSession));
     setSessionState(newSession);
   };
 
   const clearSession = () => {
     setSessionState(null);
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.SESSION);
   };
 
   return {

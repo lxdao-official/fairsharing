@@ -55,7 +55,7 @@ function TRPCInner({ children }: { children: React.ReactNode }) {
           headers: () => {
             // Get token from localStorage to include in API requests
             try {
-              const session = localStorage.getItem('access_token');
+              const session = localStorage.getItem('fairsharing_session');
               if (session) {
                 const parsed = JSON.parse(session);
                 return {

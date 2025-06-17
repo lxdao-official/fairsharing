@@ -33,6 +33,7 @@ FairSharing is a decentralized application (DApp) for managing and validating pr
 - Use consistent naming: camelCase for variables/functions, PascalCase for components
 - Keep components small and focused on single responsibility
 - Use meaningful variable names that describe intent
+- All documents and code comments should be in English
 
 ### File Organization
 

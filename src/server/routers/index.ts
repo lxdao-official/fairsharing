@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
+import { userRouter } from './user';
 
 export const appRouter = router({
+  // User authentication and profile management
+  user: userRouter,
+
+  // Legacy demo endpoints (can be removed later)
   hello: publicProcedure
     .input(z.object({ name: z.string().optional() }))
     .query(({ input }) => {

@@ -18,6 +18,7 @@ model User {
   avatar         String?
   bio            String?
   links          Json?
+  nonce          String                    @default(cuid())
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
   deletedAt      DateTime?

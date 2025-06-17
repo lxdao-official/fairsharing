@@ -39,7 +39,6 @@ Please sign this message to authenticate your wallet.
 
 Wallet Address: ${address}
 Nonce: ${nonce}
-Timestamp: ${Date.now()}
 
 This signature will not trigger any blockchain transaction or cost gas fees.`;
 }

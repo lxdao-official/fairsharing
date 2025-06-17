@@ -53,9 +53,9 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     if (
       session &&
-      (!isConnected ||
-        (address &&
-          session.user.walletAddress.toLowerCase() !== address.toLowerCase()))
+      address && // Only check when we have an address
+      isConnected && // Only check when connected
+      session.user.walletAddress.toLowerCase() !== address.toLowerCase()
     ) {
       clearSession();
     }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure, AuthenticatedContext } from '../trpc';
+import { createTRPCRouter, publicProcedure } from '../trpc';
 import { protectedProcedure } from '../middleware';
 import { db } from '@/lib/db';
 import {
@@ -11,7 +11,7 @@ import {
   type AuthSession,
 } from '@/lib/auth';
 
-export const userRouter = router({
+export const userRouter = createTRPCRouter({
   /**
    * Get or generate user nonce for signature verification
    */

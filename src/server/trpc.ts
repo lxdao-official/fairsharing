@@ -26,6 +26,10 @@ export interface AuthenticatedContext extends Context {
 
 const t = initTRPC.context<Context>().create();
 
-export const router = t.router;
+export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
+
+// Authenticated procedure - will be implemented with middleware
+export const authenticatedProcedure = t.procedure;
+
 export { t };

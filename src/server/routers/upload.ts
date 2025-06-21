@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { router, publicProcedure } from '../trpc';
+import { createTRPCRouter, publicProcedure } from '../trpc';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { TRPCError } from '@trpc/server';
 
@@ -16,7 +16,7 @@ const s3Client = new S3Client({
 const BUCKET_NAME = 'fairsharing';
 const PUBLIC_URL = 'https://cdn.fairshar.ing';
 
-export const uploadRouter = router({
+export const uploadRouter = createTRPCRouter({
   /**
    * Upload image to Cloudflare R2
    */

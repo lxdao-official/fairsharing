@@ -25,11 +25,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { createProjectSchema } from '@/lib/validations/project';
 import { CreateProjectFormData } from '@/types/project';
+import { trpc } from '@/utils/trpc';
 import { useAccount } from 'wagmi';
 import { useEffect } from 'react';
 
 export default function CreateProjectPage() {
   const { address } = useAccount();
+  const createProjectMutation = trpc.project.create.useMutation();
 
   const {
     control,
@@ -65,61 +67,32 @@ export default function CreateProjectPage() {
     }
   }, [address, setValue]);
 
-  const onSubmit = (data: CreateProjectFormData) => {
+  const onSubmit = async (data: CreateProjectFormData) => {
     console.log('=== Form Submission ===');
     console.log('Form Errors:', errors);
-    console.log('📋 Basic Information:');
-    console.log('  • Logo:', data.logo || 'Not uploaded');
-    console.log('  • Project Name:', data.projectName);
-    console.log('  • Description:', data.description);
-    console.log('  • Token Name:', data.tokenName);
-
-    console.log('⚙️ Validation Settings:');
-    console.log('  • Who can validate:', data.validateType);
-    console.log('  • Validation strategy:', data.validationStrategy);
-    console.log('  • Validation period:', data.validationPeriodDays, 'days');
-
-    console.log('👥 Submission Settings:');
-    console.log('  • Who can submit:', data.submitterType);
-    console.log(
-      '  • Default hourly pay:',
-      data.defaultHourlyPay,
-      data.tokenName + '/hour',
-    );
-
-    console.log('🏢 Team Management:');
-    console.log('  • Project owner:', data.projectOwner || 'Default (creator)');
-    if (data.members && data.members.length > 0) {
-      console.log('  • Team members:');
-      data.members.forEach((member, index) => {
-        const roles = [];
-        if (member.isValidator) roles.push('Validator');
-        if (member.isContributor) roles.push('Contributor');
-        if (member.isAdmin) roles.push('Admin');
-        console.log(
-          `    ${index + 1}. ${member.address} (${
-            roles.join(', ') || 'No roles'
-          })`,
-        );
-      });
-    } else {
-      console.log('  • No additional team members added');
-    }
-
-    console.log('🔗 Other Links:');
-    if (data.otherLinks && data.otherLinks.length > 0) {
-      data.otherLinks.forEach((link, index) => {
-        console.log(`  • ${link.type}: ${link.url}`);
-      });
-    } else {
-      console.log('  • No additional links added');
-    }
-
     console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
-    console.log('======================');
 
-    // TODO: Add API call here
-    alert('Form submitted successfully! Check console for details.');
+    try {
+      const result = await createProjectMutation.mutateAsync({
+        ...data,
+        validationStrategy: data.validationStrategy as
+          | 'simple'
+          | 'quorum'
+          | 'absolute'
+          | 'relative',
+      });
+
+      console.log('✅ Project created successfully:', result);
+      alert(
+        `Project "${result.project.name}" created successfully! Project key: ${result.project.key}`,
+      );
+
+      // Optionally redirect to the project page
+      // window.location.href = `/app/${result.project.key}`;
+    } catch (error) {
+      console.error('❌ Error creating project:', error);
+      alert('Failed to create project. Please try again.');
+    }
   };
 
   const onError = (errors: any) => {
@@ -509,9 +482,12 @@ export default function CreateProjectPage() {
                   size="md"
                   radius="md"
                   color="secondary"
-                  loading={isSubmitting}
+                  loading={isSubmitting || createProjectMutation.isPending}
+                  disabled={isSubmitting || createProjectMutation.isPending}
                 >
-                  Create My Pie
+                  {createProjectMutation.isPending
+                    ? 'Creating...'
+                    : 'Create My Pie'}
                 </Button>
               </Box>
             </Group>

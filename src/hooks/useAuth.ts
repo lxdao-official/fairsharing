@@ -26,24 +26,26 @@ export function useAuth(): UseAuthReturn {
   // Initialize auth by checking localStorage session
   useEffect(() => {
     const initAuth = () => {
-      try {
-        const savedSession = localStorage.getItem(STORAGE_KEYS.SESSION);
-        if (savedSession) {
-          const parsed = JSON.parse(savedSession) as AuthSession;
+      // Only access localStorage in browser environment
+      if (typeof window !== 'undefined') {
+        try {
+          const savedSession = localStorage.getItem(STORAGE_KEYS.SESSION);
+          if (savedSession) {
+            const parsed = JSON.parse(savedSession) as AuthSession;
 
-          // Check if token is expired
-          if (parsed.expiresAt > Date.now()) {
-            setSessionState(parsed);
-          } else {
-            localStorage.removeItem(STORAGE_KEYS.SESSION);
+            // Check if token is expired
+            if (parsed.expiresAt > Date.now()) {
+              setSessionState(parsed);
+            } else {
+              localStorage.removeItem(STORAGE_KEYS.SESSION);
+            }
           }
+        } catch (error) {
+          console.error('Failed to parse saved session:', error);
+          localStorage.removeItem(STORAGE_KEYS.SESSION);
         }
-      } catch (error) {
-        console.error('Failed to parse saved session:', error);
-        localStorage.removeItem(STORAGE_KEYS.SESSION);
-      } finally {
-        setIsLoading(false);
       }
+      setIsLoading(false);
     };
 
     initAuth();
@@ -62,13 +64,17 @@ export function useAuth(): UseAuthReturn {
   }, [isConnected, address, session]);
 
   const setSession = (newSession: AuthSession) => {
-    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(newSession));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(newSession));
+    }
     setSessionState(newSession);
   };
 
   const clearSession = () => {
     setSessionState(null);
-    localStorage.removeItem(STORAGE_KEYS.SESSION);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.SESSION);
+    }
   };
 
   return {

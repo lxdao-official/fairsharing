@@ -4,7 +4,7 @@ import '@mantine/dates/styles.css';
 import '@mantine/charts/styles.css';
 import './globals.css';
 import { Lexend, Roboto } from 'next/font/google';
-import TRPCProvider from '../components/TRPCProvider';
+import ClientWrapper from '../components/ClientWrapper';
 import { MantineProvider } from '@mantine/core';
 import { theme } from '../theme';
 
@@ -33,9 +33,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${roboto.variable} ${lexend.variable}  antialiased`}>
-        <TRPCProvider>
+        <ClientWrapper>
           <MantineProvider theme={theme}>{children}</MantineProvider>
-        </TRPCProvider>
+        </ClientWrapper>
       </body>
     </html>
   );

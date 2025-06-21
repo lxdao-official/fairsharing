@@ -54,16 +54,19 @@ function TRPCInner({ children }: { children: React.ReactNode }) {
           url: '/api/trpc',
           headers: () => {
             // Get token from localStorage to include in API requests
-            try {
-              const session = localStorage.getItem('fairsharing_session');
-              if (session) {
-                const parsed = JSON.parse(session);
-                return {
-                  authorization: `Bearer ${parsed.token}`,
-                };
+            // Only access localStorage in browser environment
+            if (typeof window !== 'undefined') {
+              try {
+                const session = localStorage.getItem('fairsharing_session');
+                if (session) {
+                  const parsed = JSON.parse(session);
+                  return {
+                    authorization: `Bearer ${parsed.token}`,
+                  };
+                }
+              } catch (error) {
+                console.error('Failed to get auth token:', error);
               }
-            } catch (error) {
-              console.error('Failed to get auth token:', error);
             }
             return {};
           },

@@ -25,7 +25,7 @@ export interface CreateProjectFormData {
 
   // Other Links (Optional)
   otherLinks?: {
-    type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
+    type: 'twitter' | 'telegram' | 'website' | 'github' | 'discord' | 'custom';
     url: string;
   }[];
 }

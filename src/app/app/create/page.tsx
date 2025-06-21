@@ -17,8 +17,8 @@ import {
 import { ValidateCardSelect } from '@/components/ValidateCardSelect';
 import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
 import { ValidationStrategySelect } from '@/components/ValidationStrategySelect';
-import { MemberManagement } from '@/components/MemberManagement';
-import { OtherLinksManagement } from '@/components/OtherLinksManagement';
+import MemberManagement from '@/components/MemberManagement';
+import OtherLinksManagement from '@/components/OtherLinksManagement';
 import { ImageUpload } from '@/components/ImageUpload';
 import { AddressInput } from '@/components/AddressInput';
 import { useForm, Controller } from 'react-hook-form';

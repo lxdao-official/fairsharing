@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Group, Text, TextInput, Button } from '@mantine/core';
 import {
   IconBrandX,
@@ -9,21 +9,18 @@ import {
   IconPlus,
   IconMinus,
 } from '@tabler/icons-react';
-import { generateId } from '@/utils/generateId';
 
-// Internal link interface with ID and UI data for component state
-interface InternalLinkItem {
-  id: string;
-  type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
-  label: string;
-  placeholder: string;
+// External link interface for form data
+export interface LinkItem {
+  type: 'twitter' | 'telegram' | 'website' | 'github' | 'discord' | 'custom';
   url: string;
 }
 
-// External link interface without ID and UI data for form data
-export interface LinkItem {
-  type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
-  url: string;
+// Internal interface for UI rendering (includes UI properties)
+interface InternalLinkItem extends LinkItem {
+  id: string;
+  label: string;
+  placeholder: string;
 }
 
 interface OtherLinksManagementProps {
@@ -35,13 +32,11 @@ function OtherLinksManagement({
   value = [],
   onChange,
 }: OtherLinksManagementProps) {
-  const [internalLinks, setInternalLinks] = useState<InternalLinkItem[]>([]);
-
   const predefinedLinks = [
     {
-      type: 'x' as const,
-      label: 'X',
-      placeholder: 'https://x.com/...',
+      type: 'twitter' as const,
+      label: 'Twitter',
+      placeholder: 'https://twitter.com/...',
       icon: <IconBrandX size={20} />,
     },
     {
@@ -57,9 +52,9 @@ function OtherLinksManagement({
       icon: <IconWorld size={20} />,
     },
     {
-      type: 'snapshot' as const,
-      label: 'Snapshot',
-      placeholder: 'https://snapshot.box/#/...',
+      type: 'github' as const,
+      label: 'GitHub',
+      placeholder: 'https://github.com/...',
       icon: <IconCamera size={20} />,
     },
     {
@@ -71,75 +66,46 @@ function OtherLinksManagement({
     { type: 'custom' as const, label: 'Others', icon: <IconPlus size={16} /> },
   ];
 
-  // Convert external links to internal links with IDs and UI data
-  useEffect(() => {
-    const convertedLinks = value.map((link) => {
+  // Convert external links to internal format for rendering
+  const internalLinks: InternalLinkItem[] = React.useMemo(() => {
+    return value.map((link, index) => {
       const predefined = predefinedLinks.find((p) => p.type === link.type);
       return {
-        id: generateId(),
+        id: `link-${index}`, // Use stable index-based ID
         type: link.type,
         label: predefined?.label || 'Custom Link',
         placeholder: predefined?.placeholder || 'https://...',
         url: link.url,
       };
     });
-    setInternalLinks(convertedLinks);
   }, [value]);
 
-  const addLink = (type: InternalLinkItem['type']) => {
-    const newLink: InternalLinkItem = {
-      id: generateId(),
+  const addLink = (type: LinkItem['type']) => {
+    const newLink: LinkItem = {
       type,
-      placeholder:
-        type === 'custom'
-          ? 'https://...'
-          : predefinedLinks.find((p) => p.type === type)?.placeholder || '',
-      label:
-        type === 'custom'
-          ? 'Custom Link'
-          : predefinedLinks.find((p) => p.type === type)?.label || '',
       url: '',
     };
-    const updatedLinks = [...internalLinks, newLink];
-    setInternalLinks(updatedLinks);
-
-    // Transform data to remove id, label, placeholder before sending to parent
-    const transformedLinks = updatedLinks.map(
-      ({ id, label, placeholder, ...rest }) => rest,
-    );
-    onChange?.(transformedLinks);
+    onChange?.([...value, newLink]);
   };
 
   const updateLink = (
-    id: string,
-    field: keyof InternalLinkItem,
-    value: string,
+    index: number,
+    field: keyof LinkItem,
+    newValue: string,
   ) => {
-    const updatedLinks = internalLinks.map((link) =>
-      link.id === id ? { ...link, [field]: value } : link,
+    const updatedLinks = value.map((link, i) =>
+      i === index ? { ...link, [field]: newValue } : link,
     );
-    setInternalLinks(updatedLinks);
-
-    // Transform data to remove id, label, placeholder before sending to parent
-    const transformedLinks = updatedLinks.map(
-      ({ id, label, placeholder, ...rest }) => rest,
-    );
-    onChange?.(transformedLinks);
+    onChange?.(updatedLinks);
   };
 
-  const removeLink = (id: string) => {
-    const filteredLinks = internalLinks.filter((link) => link.id !== id);
-    setInternalLinks(filteredLinks);
-
-    // Transform data to remove id, label, placeholder before sending to parent
-    const transformedLinks = filteredLinks.map(
-      ({ id, label, placeholder, ...rest }) => rest,
-    );
-    onChange?.(transformedLinks);
+  const removeLink = (index: number) => {
+    const filteredLinks = value.filter((_, i) => i !== index);
+    onChange?.(filteredLinks);
   };
 
-  const isLinkTypeAdded = (type: InternalLinkItem['type']) => {
-    return internalLinks.some((link) => link.type === type);
+  const isLinkTypeAdded = (type: LinkItem['type']) => {
+    return value.some((link) => link.type === type);
   };
 
   return (
@@ -192,7 +158,7 @@ function OtherLinksManagement({
       </Group>
 
       {/* Dynamic Link Inputs */}
-      {internalLinks.map((link) => (
+      {internalLinks.map((link, index) => (
         <Group key={link.id} align="center" mb={16} gap={16}>
           <Box style={{ minWidth: 100 }}>
             <Text style={{ fontWeight: 600, fontSize: 14, color: '#374151' }}>
@@ -202,13 +168,13 @@ function OtherLinksManagement({
           <TextInput
             placeholder={link.placeholder}
             value={link.url}
-            onChange={(e) => updateLink(link.id, 'url', e.target.value)}
+            onChange={(e) => updateLink(index, 'url', e.target.value)}
             style={{ flex: 1, maxWidth: 460, width: '100%' }}
             radius="sm"
             size="sm"
           />
           <Button
-            onClick={() => removeLink(link.id)}
+            onClick={() => removeLink(index)}
             variant="light"
             color="gray"
             size="sm"
@@ -231,4 +197,4 @@ function OtherLinksManagement({
   );
 }
 
-export { OtherLinksManagement };
+export default OtherLinksManagement;

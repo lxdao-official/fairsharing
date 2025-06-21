@@ -13,7 +13,7 @@ const s3Client = new S3Client({
   },
 });
 
-const BUCKET_NAME = 'uploads';
+const BUCKET_NAME = 'fairsharing';
 const PUBLIC_URL = 'https://cdn.fairshar.ing';
 
 export const uploadRouter = router({
@@ -62,7 +62,7 @@ export const uploadRouter = router({
         const timestamp = Date.now();
         const randomString = Math.random().toString(36).substring(2, 15);
         const fileExtension = input.fileName.split('.').pop() || 'jpg';
-        const uniqueFileName = `/${timestamp}-${randomString}.${fileExtension}`;
+        const uniqueFileName = `uploads/${timestamp}-${randomString}.${fileExtension}`;
 
         // Upload to R2
         const uploadCommand = new PutObjectCommand({
@@ -76,7 +76,7 @@ export const uploadRouter = router({
         await s3Client.send(uploadCommand);
 
         // Return public URL
-        const publicUrl = `${PUBLIC_URL}/${uniqueFileName}`;
+        const publicUrl = `${PUBLIC_URL}/fairsharing/${uniqueFileName}`;
 
         return {
           success: true,

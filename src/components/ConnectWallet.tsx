@@ -1,12 +1,14 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { ConnectKitButton } from 'connectkit';
-import { Button } from '@mantine/core';
+import { Button, Avatar, Group } from '@mantine/core';
 import { useAccount, useSignMessage } from 'wagmi';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/utils/trpc';
 import { useAuth } from '@/hooks/useAuth';
 
 export function ConnectWallet() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const { session, isAuthenticated, setSession, clearSession } = useAuth();
   const { signMessageAsync } = useSignMessage();
@@ -129,8 +131,26 @@ export function ConnectWallet() {
             );
           }
 
-          // Connected and authenticated (use default ConnectKit button)
-          return <ConnectKitButton showBalance={false} showAvatar={true} />;
+          // Connected and authenticated (show ConnectKit button + custom avatar)
+          return (
+            <Group gap="sm">
+              <ConnectKitButton showBalance={false} showAvatar={false} />
+              <Avatar
+                src={session?.user.avatar}
+                alt={session?.user.name || ensName || 'User Avatar'}
+                size="md"
+                radius="xl"
+                style={{ cursor: 'pointer' }}
+                onClick={() => router.push(`/user/${address}`)}
+              >
+                {!session?.user.avatar &&
+                  (ensName
+                    ? ensName.slice(0, 2)
+                    : address?.slice(2, 4) || 'U'
+                  ).toUpperCase()}
+              </Avatar>
+            </Group>
+          );
         }}
       </ConnectKitButton.Custom>
     </div>

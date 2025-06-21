@@ -141,7 +141,7 @@ export function ConnectWallet() {
                 size="md"
                 radius="xl"
                 style={{ cursor: 'pointer' }}
-                onClick={() => router.push(`/user/${address}`)}
+                onClick={() => router.push(`/app/user/${address}`)}
               >
                 {!session?.user.avatar &&
                   (ensName

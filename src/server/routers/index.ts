@@ -1,10 +1,14 @@
 import { z } from 'zod';
 import { router, publicProcedure } from '../trpc';
 import { userRouter } from './user';
+import { uploadRouter } from './upload';
 
 export const appRouter = router({
   // User authentication and profile management
   user: userRouter,
+
+  // File upload management
+  upload: uploadRouter,
 
   // Legacy demo endpoints (can be removed later)
   hello: publicProcedure

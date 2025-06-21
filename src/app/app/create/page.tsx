@@ -18,8 +18,12 @@ import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
 import { ValidationStrategySelect } from '@/components/ValidationStrategySelect';
 import { MemberManagement } from '@/components/MemberManagement';
 import { OtherLinksManagement } from '@/components/OtherLinksManagement';
+import { ImageUpload } from '@/components/ImageUpload';
+import { useState } from 'react';
 
 export default function CreateProjectPage() {
+  const [projectLogo, setProjectLogo] = useState<string | null>(null);
+
   return (
     <AppShell header={{ height: 64 }} padding="md">
       <AppShell.Header>
@@ -41,6 +45,25 @@ export default function CreateProjectPage() {
           <Group align="flex-start" gap={48}>
             <Title order={2}>Project Information</Title>
             <Stack style={{ flex: 1, maxWidth: 785 }}>
+              {/* Project Logo Upload */}
+              <Box>
+                <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
+                  Project Logo
+                </Text>
+                <Text
+                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 16 }}
+                >
+                  Upload a square logo for your project (recommended size:
+                  200x200px)
+                </Text>
+                <ImageUpload
+                  value={projectLogo}
+                  onChange={setProjectLogo}
+                  size={200}
+                  placeholder="Upload project logo"
+                />
+              </Box>
+
               <TextInput
                 label={
                   <span style={{ fontWeight: 700, fontSize: 16 }}>

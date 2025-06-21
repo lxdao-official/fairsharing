@@ -100,9 +100,19 @@ export const createProjectSchema = yup.object().shape({
       yup.object().shape({
         type: yup
           .string()
-          .oneOf(['x', 'telegram', 'website', 'snapshot', 'discord', 'custom'])
+          .oneOf([
+            'twitter',
+            'telegram',
+            'website',
+            'github',
+            'discord',
+            'custom',
+          ])
           .required(),
-        url: yup.string().url('Invalid URL format').required('URL is required'),
+        url: yup
+          .string()
+          .required('URL is required')
+          .matches(/^https?:\/\/.+/, 'URL must start with http:// or https://'),
       }),
     )
     .optional(),

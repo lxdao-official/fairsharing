@@ -67,6 +67,7 @@ export default function CreateProjectPage() {
 
   const onSubmit = (data: CreateProjectFormData) => {
     console.log('=== Form Submission ===');
+    console.log('Form Errors:', errors);
     console.log('📋 Basic Information:');
     console.log('  • Logo:', data.logo || 'Not uploaded');
     console.log('  • Project Name:', data.projectName);
@@ -121,6 +122,20 @@ export default function CreateProjectPage() {
     alert('Form submitted successfully! Check console for details.');
   };
 
+  const onError = (errors: any) => {
+    console.log('=== Form Validation Errors ===');
+    console.log('Validation Errors:', errors);
+    console.log('===============================');
+
+    // Show first error message
+    const firstError = Object.values(errors)[0] as any;
+    if (firstError?.message) {
+      alert(`Form validation failed: ${firstError.message}`);
+    } else {
+      alert('Form validation failed. Please check the console for details.');
+    }
+  };
+
   return (
     <AppShell header={{ height: 64 }} padding="md">
       <AppShell.Header>
@@ -139,7 +154,7 @@ export default function CreateProjectPage() {
           >
             Create My Pie
           </Title>
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form onSubmit={handleSubmit(onSubmit, onError)}>
             <Group align="flex-start" gap={48}>
               <Title order={2}>Project Information</Title>
               <Stack style={{ flex: 1, maxWidth: 785 }}>

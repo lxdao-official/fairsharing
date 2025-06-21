@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Group, Text, TextInput, Button } from '@mantine/core';
 import {
   IconBrandX,
@@ -9,8 +9,10 @@ import {
   IconPlus,
   IconMinus,
 } from '@tabler/icons-react';
+import { generateId } from '@/utils/generateId';
 
-interface LinkItem {
+// Internal link interface with ID and UI data for component state
+interface InternalLinkItem {
   id: string;
   type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
   label: string;
@@ -18,8 +20,22 @@ interface LinkItem {
   url: string;
 }
 
-function OtherLinksManagement() {
-  const [links, setLinks] = useState<LinkItem[]>([]);
+// External link interface without ID and UI data for form data
+export interface LinkItem {
+  type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
+  url: string;
+}
+
+interface OtherLinksManagementProps {
+  value?: LinkItem[];
+  onChange?: (links: LinkItem[]) => void;
+}
+
+function OtherLinksManagement({
+  value = [],
+  onChange,
+}: OtherLinksManagementProps) {
+  const [internalLinks, setInternalLinks] = useState<InternalLinkItem[]>([]);
 
   const predefinedLinks = [
     {
@@ -55,9 +71,24 @@ function OtherLinksManagement() {
     { type: 'custom' as const, label: 'Others', icon: <IconPlus size={16} /> },
   ];
 
-  const addLink = (type: LinkItem['type']) => {
-    const newLink: LinkItem = {
-      id: Date.now().toString(),
+  // Convert external links to internal links with IDs and UI data
+  useEffect(() => {
+    const convertedLinks = value.map((link) => {
+      const predefined = predefinedLinks.find((p) => p.type === link.type);
+      return {
+        id: generateId(),
+        type: link.type,
+        label: predefined?.label || 'Custom Link',
+        placeholder: predefined?.placeholder || 'https://...',
+        url: link.url,
+      };
+    });
+    setInternalLinks(convertedLinks);
+  }, [value]);
+
+  const addLink = (type: InternalLinkItem['type']) => {
+    const newLink: InternalLinkItem = {
+      id: generateId(),
       type,
       placeholder:
         type === 'custom'
@@ -69,23 +100,46 @@ function OtherLinksManagement() {
           : predefinedLinks.find((p) => p.type === type)?.label || '',
       url: '',
     };
-    setLinks([...links, newLink]);
+    const updatedLinks = [...internalLinks, newLink];
+    setInternalLinks(updatedLinks);
+
+    // Transform data to remove id, label, placeholder before sending to parent
+    const transformedLinks = updatedLinks.map(
+      ({ id, label, placeholder, ...rest }) => rest,
+    );
+    onChange?.(transformedLinks);
   };
 
-  const updateLink = (id: string, field: keyof LinkItem, value: string) => {
-    setLinks(
-      links.map((link) =>
-        link.id === id ? { ...link, [field]: value } : link,
-      ),
+  const updateLink = (
+    id: string,
+    field: keyof InternalLinkItem,
+    value: string,
+  ) => {
+    const updatedLinks = internalLinks.map((link) =>
+      link.id === id ? { ...link, [field]: value } : link,
     );
+    setInternalLinks(updatedLinks);
+
+    // Transform data to remove id, label, placeholder before sending to parent
+    const transformedLinks = updatedLinks.map(
+      ({ id, label, placeholder, ...rest }) => rest,
+    );
+    onChange?.(transformedLinks);
   };
 
   const removeLink = (id: string) => {
-    setLinks(links.filter((link) => link.id !== id));
+    const filteredLinks = internalLinks.filter((link) => link.id !== id);
+    setInternalLinks(filteredLinks);
+
+    // Transform data to remove id, label, placeholder before sending to parent
+    const transformedLinks = filteredLinks.map(
+      ({ id, label, placeholder, ...rest }) => rest,
+    );
+    onChange?.(transformedLinks);
   };
 
-  const isLinkTypeAdded = (type: LinkItem['type']) => {
-    return links.some((link) => link.type === type);
+  const isLinkTypeAdded = (type: InternalLinkItem['type']) => {
+    return internalLinks.some((link) => link.type === type);
   };
 
   return (
@@ -138,7 +192,7 @@ function OtherLinksManagement() {
       </Group>
 
       {/* Dynamic Link Inputs */}
-      {links.map((link) => (
+      {internalLinks.map((link) => (
         <Group key={link.id} align="center" mb={16} gap={16}>
           <Box style={{ minWidth: 100 }}>
             <Text style={{ fontWeight: 600, fontSize: 14, color: '#374151' }}>

@@ -20,6 +20,7 @@ import { ValidationStrategySelect } from '@/components/ValidationStrategySelect'
 import { MemberManagement } from '@/components/MemberManagement';
 import { OtherLinksManagement } from '@/components/OtherLinksManagement';
 import { ImageUpload } from '@/components/ImageUpload';
+import { AddressInput } from '@/components/AddressInput';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { createProjectSchema } from '@/lib/validations/project';
@@ -49,6 +50,8 @@ export default function CreateProjectPage() {
       submitterType: 'everyone',
       defaultHourlyPay: 0,
       projectOwner: '',
+      members: [],
+      otherLinks: [],
     },
   });
 
@@ -85,6 +88,31 @@ export default function CreateProjectPage() {
 
     console.log('🏢 Team Management:');
     console.log('  • Project owner:', data.projectOwner || 'Default (creator)');
+    if (data.members && data.members.length > 0) {
+      console.log('  • Team members:');
+      data.members.forEach((member, index) => {
+        const roles = [];
+        if (member.isValidator) roles.push('Validator');
+        if (member.isContributor) roles.push('Contributor');
+        if (member.isAdmin) roles.push('Admin');
+        console.log(
+          `    ${index + 1}. ${member.address} (${
+            roles.join(', ') || 'No roles'
+          })`,
+        );
+      });
+    } else {
+      console.log('  • No additional team members added');
+    }
+
+    console.log('🔗 Other Links:');
+    if (data.otherLinks && data.otherLinks.length > 0) {
+      data.otherLinks.forEach((link, index) => {
+        console.log(`  • ${link.type}: ${link.url}`);
+      });
+    } else {
+      console.log('  • No additional links added');
+    }
 
     console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
     console.log('======================');
@@ -394,9 +422,13 @@ export default function CreateProjectPage() {
                 <Controller
                   name="projectOwner"
                   control={control}
-                  render={({ field, fieldState: { error } }) => (
-                    <TextInput
-                      {...field}
+                  render={({
+                    field: { value, onChange },
+                    fieldState: { error },
+                  }) => (
+                    <AddressInput
+                      value={value}
+                      onChange={onChange}
                       label={
                         <span style={{ fontWeight: 700, fontSize: 16 }}>
                           Project Owner (Wallet address or ENS)
@@ -422,7 +454,13 @@ export default function CreateProjectPage() {
 
                 {/* Member Management */}
                 <Box mt={24}>
-                  <MemberManagement />
+                  <Controller
+                    name="members"
+                    control={control}
+                    render={({ field: { value, onChange } }) => (
+                      <MemberManagement value={value} onChange={onChange} />
+                    )}
+                  />
                 </Box>
               </Box>
             </Group>
@@ -438,7 +476,13 @@ export default function CreateProjectPage() {
                 </Text>
               </Box>
               <Box style={{ flex: 1, maxWidth: 785 }}>
-                <OtherLinksManagement />
+                <Controller
+                  name="otherLinks"
+                  control={control}
+                  render={({ field: { value, onChange } }) => (
+                    <OtherLinksManagement value={value} onChange={onChange} />
+                  )}
+                />
               </Box>
             </Group>
 

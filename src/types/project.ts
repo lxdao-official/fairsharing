@@ -18,13 +18,14 @@ export interface CreateProjectFormData {
   projectOwner: string;
   members?: {
     address: string;
-    role: string;
-    hourlyPay?: number;
+    isValidator: boolean;
+    isContributor: boolean;
+    isAdmin: boolean;
   }[];
 
   // Other Links (Optional)
   otherLinks?: {
-    name: string;
+    type: 'x' | 'telegram' | 'website' | 'snapshot' | 'discord' | 'custom';
     url: string;
   }[];
 }

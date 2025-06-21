@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Group,
@@ -7,46 +7,111 @@ import {
   Checkbox,
   Tooltip,
   Button,
+  ActionIcon,
 } from '@mantine/core';
-import { IconPlus, IconInfoCircle } from '@tabler/icons-react';
+import { IconPlus, IconInfoCircle, IconTrash } from '@tabler/icons-react';
+import { AddressInput } from './AddressInput';
+import { generateId } from '@/utils/generateId';
 
-interface Member {
+// Internal member interface with ID for component state
+interface InternalMember {
+  id: string;
   address: string;
   isValidator: boolean;
   isContributor: boolean;
   isAdmin: boolean;
 }
 
-function MemberManagement() {
-  const [members, setMembers] = useState<Member[]>([
-    {
-      address: '',
-      isValidator: false,
-      isContributor: false,
-      isAdmin: false,
+// External member interface without ID for form data
+export interface Member {
+  address: string;
+  isValidator: boolean;
+  isContributor: boolean;
+  isAdmin: boolean;
+}
+
+interface MemberManagementProps {
+  value?: Member[];
+  onChange?: (members: Member[]) => void;
+}
+
+function MemberManagement({ value = [], onChange }: MemberManagementProps) {
+  // Convert external members to internal members with IDs
+  const [internalMembers, setInternalMembers] = useState<InternalMember[]>(
+    () => {
+      if (value.length > 0) {
+        return value.map((member) => ({
+          id: generateId(),
+          ...member,
+        }));
+      }
+      return [
+        {
+          id: generateId(),
+          address: '',
+          isValidator: false,
+          isContributor: false,
+          isAdmin: false,
+        },
+      ];
     },
-  ]);
+  );
+
+  // Update internal state when external value changes
+  useEffect(() => {
+    if (value.length > 0) {
+      setInternalMembers(
+        value.map((member) => ({
+          id: generateId(),
+          ...member,
+        })),
+      );
+    }
+  }, [value]);
 
   const addMember = () => {
-    const newMember: Member = {
+    const newMember: InternalMember = {
+      id: generateId(),
       address: '',
       isValidator: false,
       isContributor: false,
       isAdmin: false,
     };
-    setMembers([...members, newMember]);
+    const updatedMembers = [...internalMembers, newMember];
+    setInternalMembers(updatedMembers);
+
+    // Transform data to remove id before sending to parent
+    const transformedMembers = updatedMembers.map(({ id, ...rest }) => rest);
+    onChange?.(transformedMembers);
   };
 
   const updateMember = (
-    address: string,
-    field: keyof Member,
+    id: string,
+    field: keyof InternalMember,
     value: string | boolean,
   ) => {
-    setMembers(
-      members.map((member) =>
-        member.address === address ? { ...member, [field]: value } : member,
-      ),
+    const updatedMembers = internalMembers.map((member) =>
+      member.id === id ? { ...member, [field]: value } : member,
     );
+    setInternalMembers(updatedMembers);
+
+    // Transform data to remove id before sending to parent
+    const transformedMembers = updatedMembers.map(({ id, ...rest }) => rest);
+    onChange?.(transformedMembers);
+  };
+
+  const removeMember = (id: string) => {
+    // Keep at least one member row
+    if (internalMembers.length > 1) {
+      const filteredMembers = internalMembers.filter(
+        (member) => member.id !== id,
+      );
+      setInternalMembers(filteredMembers);
+
+      // Transform data to remove id before sending to parent
+      const transformedMembers = filteredMembers.map(({ id, ...rest }) => rest);
+      onChange?.(transformedMembers);
+    }
   };
 
   return (
@@ -116,20 +181,12 @@ function MemberManagement() {
         </Group>
       </Group>
 
-      {members.map((member) => (
-        <Group
-          key={member.address}
-          align="center"
-          mb={12}
-          gap={16}
-          display="flex"
-        >
-          <TextInput
-            placeholder="0x123456"
+      {internalMembers.map((member) => (
+        <Group key={member.id} align="center" mb={12} gap={16} display="flex">
+          <AddressInput
+            placeholder="0x123456... or username.eth"
             value={member.address}
-            onChange={(e) =>
-              updateMember(member.address, 'address', e.target.value)
-            }
+            onChange={(value) => updateMember(member.id, 'address', value)}
             style={{ width: 320 }}
             radius="sm"
             size="sm"
@@ -141,7 +198,7 @@ function MemberManagement() {
               <Checkbox
                 checked={member.isValidator}
                 onChange={(e) =>
-                  updateMember(member.address, 'isValidator', e.target.checked)
+                  updateMember(member.id, 'isValidator', e.target.checked)
                 }
                 styles={{
                   input: {
@@ -161,11 +218,7 @@ function MemberManagement() {
               <Checkbox
                 checked={member.isContributor}
                 onChange={(e) =>
-                  updateMember(
-                    member.address,
-                    'isContributor',
-                    e.target.checked,
-                  )
+                  updateMember(member.id, 'isContributor', e.target.checked)
                 }
                 styles={{
                   input: {
@@ -185,7 +238,7 @@ function MemberManagement() {
               <Checkbox
                 checked={member.isAdmin}
                 onChange={(e) =>
-                  updateMember(member.address, 'isAdmin', e.target.checked)
+                  updateMember(member.id, 'isAdmin', e.target.checked)
                 }
                 styles={{
                   input: {
@@ -198,6 +251,20 @@ function MemberManagement() {
                   },
                 }}
               />
+            </Box>
+            <Box
+              style={{ width: 40, display: 'flex', justifyContent: 'center' }}
+            >
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                size="sm"
+                onClick={() => removeMember(member.id)}
+                disabled={internalMembers.length === 1}
+                style={{ opacity: internalMembers.length === 1 ? 0.3 : 1 }}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
             </Box>
           </Group>
         </Group>

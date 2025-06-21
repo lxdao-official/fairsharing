@@ -80,7 +80,32 @@ export const createProjectSchema = yup.object().shape({
       'Must be a valid Ethereum address (0x...) or ENS domain (.eth)',
     ),
 
-  // Other fields can be added as needed
+  // Team Members (Optional)
+  members: yup
+    .array()
+    .of(
+      yup.object().shape({
+        address: yup.string().required('Member address is required'),
+        isValidator: yup.boolean().required(),
+        isContributor: yup.boolean().required(),
+        isAdmin: yup.boolean().required(),
+      }),
+    )
+    .optional(),
+
+  // Other Links (Optional)
+  otherLinks: yup
+    .array()
+    .of(
+      yup.object().shape({
+        type: yup
+          .string()
+          .oneOf(['x', 'telegram', 'website', 'snapshot', 'discord', 'custom'])
+          .required(),
+        url: yup.string().url('Invalid URL format').required('URL is required'),
+      }),
+    )
+    .optional(),
 });
 
 export type CreateProjectFormData = yup.InferType<typeof createProjectSchema>;

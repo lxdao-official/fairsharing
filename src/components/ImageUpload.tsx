@@ -19,6 +19,7 @@ interface ImageUploadProps {
   onChange?: (url: string | null) => void;
   size?: number;
   placeholder?: string;
+  error?: string;
 }
 
 export function ImageUpload({
@@ -26,6 +27,7 @@ export function ImageUpload({
   onChange,
   size = 200,
   placeholder = 'Upload project logo',
+  error: externalError,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,11 @@ export function ImageUpload({
         style={{
           width: size,
           height: size,
-          border: value ? 'none' : '2px dashed #e9ecef',
+          border: value
+            ? 'none'
+            : externalError
+            ? '2px dashed #F43F5E'
+            : '2px dashed #e9ecef',
           borderRadius: 12,
           cursor: 'pointer',
           position: 'relative',
@@ -196,9 +202,9 @@ export function ImageUpload({
         )}
       </Dropzone>
 
-      {error && (
+      {(error || externalError) && (
         <Alert color="red" mt="sm" variant="light">
-          {error}
+          {error || externalError}
         </Alert>
       )}
 

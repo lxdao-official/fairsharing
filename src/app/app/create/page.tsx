@@ -35,7 +35,7 @@ export default function CreateProjectPage() {
   } = useForm<CreateProjectFormData>({
     resolver: yupResolver(createProjectSchema) as any,
     defaultValues: {
-      logo: undefined,
+      logo: '',
       projectName: '',
       description: '',
       tokenName: '',
@@ -105,12 +105,12 @@ export default function CreateProjectPage() {
               <Stack style={{ flex: 1, maxWidth: 785 }}>
                 {/* Project Logo Upload */}
                 <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={4}>
                     Project Logo
                     <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
                   </Text>
                   <Text
-                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 16 }}
+                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
                   >
                     Upload a square logo for your project (recommended size:
                     200x200px)
@@ -118,12 +118,16 @@ export default function CreateProjectPage() {
                   <Controller
                     name="logo"
                     control={control}
-                    render={({ field: { value, onChange } }) => (
+                    render={({
+                      field: { value, onChange },
+                      fieldState: { error },
+                    }) => (
                       <ImageUpload
                         value={value}
                         onChange={onChange}
                         size={200}
                         placeholder="Upload project logo"
+                        error={error?.message}
                       />
                     )}
                   />
@@ -162,7 +166,7 @@ export default function CreateProjectPage() {
                       required
                       description={
                         <span style={{ color: '#6B7280', fontSize: 16 }}>
-                          No more than 500 characters
+                          No more than 150 characters
                         </span>
                       }
                       placeholder="Describe your project..."

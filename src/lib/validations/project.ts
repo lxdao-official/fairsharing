@@ -46,10 +46,13 @@ export const createProjectSchema = yup.object().shape({
 
   validationPeriodDays: yup
     .number()
-    .required('Validation period is required')
-    .positive('Validation period must be positive')
+    .when('validateType', {
+      is: 'all',
+      then: (schema) => schema.required('Validation period is required'),
+      otherwise: (schema) => schema.notRequired(),
+    })
+    .min(0, 'Validation period cannot be negative')
     .integer('Validation period must be a whole number')
-    .min(1, 'Validation period must be at least 1 day')
     .max(365, 'Validation period must not exceed 365 days'),
 
   // Submission Settings
@@ -68,10 +71,10 @@ export const createProjectSchema = yup.object().shape({
       return originalValue === '' ? null : value;
     }),
 
-  // Team Management (Optional)
+  // Team Management
   projectOwner: yup
     .string()
-    .optional()
+    .required('Project owner is required')
     .matches(
       /^(0x[a-fA-F0-9]{40}|.+\.eth)$/,
       'Must be a valid Ethereum address (0x...) or ENS domain (.eth)',

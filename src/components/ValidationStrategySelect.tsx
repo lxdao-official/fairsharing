@@ -15,22 +15,26 @@ function ValidationStrategySelect({
     {
       key: 'simple',
       label: 'Simple Majority',
-      desc: 'If ore than 50% of the votes go to "Approve"',
+      desc: 'If more than 50% of the votes go to "Approve"',
+      disabled: false,
     },
     {
       key: 'quorum',
       label: 'Quorum + Majority',
       desc: 'If the total number of votes reaches a preset quorum (e.g. 100 tokens or 20 voters) AND the majority votes for "Approve".',
+      disabled: true,
     },
     {
       key: 'absolute',
       label: 'Absolute Threshold',
       desc: 'If the "Approve" votes reach a fixed number or percentage, regardless of total turnout. E.g.: 1,000 votes for "Approve" minimum, or at least 60% Yes votes.',
+      disabled: true,
     },
     {
       key: 'relative',
       label: 'Relative Majority',
       desc: "Whichever option has the most votes wins — even if it's less than 50%.",
+      disabled: true,
     },
   ];
 
@@ -41,8 +45,9 @@ function ValidationStrategySelect({
           <Radio
             key={opt.key}
             value={opt.key}
+            disabled={opt.disabled}
             label={
-              <span>
+              <span style={{ opacity: opt.disabled ? 0.5 : 1 }}>
                 <span style={{ fontWeight: 700, fontSize: 16 }}>
                   {opt.label}:
                 </span>

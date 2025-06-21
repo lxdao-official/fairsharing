@@ -14,8 +14,8 @@ export interface CreateProjectFormData {
   submitterType: 'everyone' | 'restricted';
   defaultHourlyPay: number;
 
-  // Team Management (Optional)
-  projectOwner?: string;
+  // Team Management
+  projectOwner: string;
   members?: {
     address: string;
     role: string;

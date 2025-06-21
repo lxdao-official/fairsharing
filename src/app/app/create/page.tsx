@@ -24,8 +24,12 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { createProjectSchema } from '@/lib/validations/project';
 import { CreateProjectFormData } from '@/types/project';
+import { useAccount } from 'wagmi';
+import { useEffect } from 'react';
 
 export default function CreateProjectPage() {
+  const { address } = useAccount();
+
   const {
     control,
     handleSubmit,
@@ -41,7 +45,7 @@ export default function CreateProjectPage() {
       tokenName: '',
       validateType: 'specific',
       validationStrategy: 'simple',
-      validationPeriodDays: 5,
+      validationPeriodDays: 0,
       submitterType: 'everyone',
       defaultHourlyPay: 0,
       projectOwner: '',
@@ -49,6 +53,14 @@ export default function CreateProjectPage() {
   });
 
   const tokenName = watch('tokenName') || 'TOKEN_NAME';
+  const validateType = watch('validateType');
+
+  // Set project owner to current wallet address when available
+  useEffect(() => {
+    if (address) {
+      setValue('projectOwner', address);
+    }
+  }, [address, setValue]);
 
   const onSubmit = (data: CreateProjectFormData) => {
     console.log('=== Form Submission ===');
@@ -268,34 +280,46 @@ export default function CreateProjectPage() {
                   />
                 </Box>
 
-                {/* Validation Period */}
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                    Validation Period
-                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                  </Text>
-                  <Group align="center" mt={8} mb={8}>
-                    <Controller
-                      name="validationPeriodDays"
-                      control={control}
-                      render={({ field, fieldState: { error } }) => (
-                        <NumberInput
-                          {...field}
-                          placeholder="5"
-                          style={{ width: 100 }}
-                          radius="sm"
-                          size="sm"
-                          min={1}
-                          max={365}
-                          error={error?.message}
-                        />
-                      )}
-                    />
-                    <Text fw={800} style={{ color: '#6B7280' }}>
-                      Days
+                {/* Validation Period - Only show when validateType is 'all' */}
+                {validateType === 'all' && (
+                  <Box>
+                    <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                      Validation Period
+                      <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
                     </Text>
-                  </Group>
-                </Box>
+                    <Text
+                      style={{
+                        color: '#6B7280',
+                        fontSize: 14,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Set to 0 for immediate validation (as soon as votes reach
+                      the threshold).
+                    </Text>
+                    <Group align="center" mt={8} mb={8}>
+                      <Controller
+                        name="validationPeriodDays"
+                        control={control}
+                        render={({ field, fieldState: { error } }) => (
+                          <NumberInput
+                            {...field}
+                            placeholder="0"
+                            style={{ width: 100 }}
+                            radius="sm"
+                            size="sm"
+                            min={0}
+                            max={365}
+                            error={error?.message}
+                          />
+                        )}
+                      />
+                      <Text fw={800} style={{ color: '#6B7280' }}>
+                        Days
+                      </Text>
+                    </Group>
+                  </Box>
+                )}
 
                 {/* Who can submit contributions? */}
                 <Box>
@@ -376,11 +400,16 @@ export default function CreateProjectPage() {
                       label={
                         <span style={{ fontWeight: 700, fontSize: 16 }}>
                           Project Owner (Wallet address or ENS)
+                          <span style={{ color: '#F43F5E', marginLeft: 4 }}>
+                            *
+                          </span>
                         </span>
                       }
+                      required
                       description={
                         <span style={{ color: '#6B7280', fontSize: 14 }}>
-                          Defaults to the project creator.
+                          Defaults to the project creator and with Admin
+                          permission.
                         </span>
                       }
                       placeholder="0x123456... or username.eth"

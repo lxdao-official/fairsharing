@@ -11,7 +11,7 @@ import {
   Group,
 } from '@mantine/core';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
-import { IconUpload, IconX, IconPhoto, IconEdit } from '@tabler/icons-react';
+import { IconX, IconPhoto, IconEdit } from '@tabler/icons-react';
 import { api } from '@/utils/trpc';
 
 interface ImageUploadProps {
@@ -76,7 +76,7 @@ export function ImageUpload({
   };
 
   const openFileDialog = () => {
-    dropzoneRef.current?.();
+    dropzoneRef.current?.open();
   };
 
   return (

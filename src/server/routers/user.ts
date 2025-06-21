@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc';
+import { router, publicProcedure, AuthenticatedContext } from '../trpc';
 import { protectedProcedure } from '../middleware';
 import { db } from '@/lib/db';
 import {
@@ -166,7 +166,7 @@ export const userRouter = router({
    */
   getMe: protectedProcedure.query(async ({ ctx }) => {
     return {
-      user: ctx.user,
+      user: (ctx as any).user,
     };
   }),
 
@@ -184,7 +184,7 @@ export const userRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const updatedUser = await db.user.update({
-        where: { id: ctx.user.id },
+        where: { id: (ctx as any).user.id },
         data: {
           name: input.name,
           bio: input.bio,

@@ -25,8 +25,8 @@ import {
 } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Layout } from '@/components/Layout';
-import { ProjectCard } from '../../../components/ProjectCard';
-import { ContributionCard } from '../../../components/ContributionCard';
+import { ProjectCard } from '@/components/ProjectCard';
+import { ContributionCard } from '@/components/ContributionCard';
 
 // Mock projects data for ProjectCard
 const mockActiveProjects = [

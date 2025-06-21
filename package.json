@@ -18,7 +18,7 @@
     "@mantine/charts": "^8.1.0",
     "@mantine/core": "^8.1.0",
     "@mantine/dates": "^8.1.0",
-    "@mantine/dropzone": "^8.1.1",
+    "@mantine/dropzone": "8.1.0",
     "@mantine/hooks": "^8.1.0",
     "@prisma/client": "^6.9.0",
     "@tabler/icons-react": "^3.34.0",
@@ -53,6 +53,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
+    "pino-pretty": "^13.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.3",
     "typescript": "^5"

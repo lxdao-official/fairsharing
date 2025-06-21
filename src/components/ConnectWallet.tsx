@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function ConnectWallet() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const { session, isAuthenticated, setSession, clearSession } = useAuth();
+  const { session, isAuthenticated, setSession } = useAuth();
   const { signMessageAsync } = useSignMessage();
   const [isSigningAttempted, setIsSigningAttempted] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -21,6 +21,17 @@ export function ConnectWallet() {
 
   // Handle automatic authentication attempt when wallet connects
   useEffect(() => {
+    const handleAutoAuthentication = async () => {
+      if (!address) return;
+
+      setIsSigningAttempted(true);
+      try {
+        await performAuthentication(address);
+      } catch {
+        console.log('Auto authentication failed, user can try manual sign');
+      }
+    };
+
     if (isConnected && address && !isAuthenticated && !isSigningAttempted) {
       handleAutoAuthentication();
     }
@@ -32,17 +43,6 @@ export function ConnectWallet() {
       setIsSigningAttempted(false);
     }
   }, [isConnected]);
-
-  const handleAutoAuthentication = async () => {
-    if (!address) return;
-
-    setIsSigningAttempted(true);
-    try {
-      await performAuthentication(address);
-    } catch (error) {
-      console.log('Auto authentication failed, user can try manual sign');
-    }
-  };
 
   const handleManualSign = async () => {
     if (!address) return;
@@ -85,10 +85,11 @@ export function ConnectWallet() {
     }
   };
 
-  const handleDisconnect = () => {
-    clearSession();
-    setIsSigningAttempted(false);
-  };
+  // Uncomment if needed for logout functionality
+  // const handleDisconnect = () => {
+  //   clearSession();
+  //   setIsSigningAttempted(false);
+  // };
 
   return (
     <div>

@@ -12,6 +12,7 @@ import {
   Textarea,
   Box,
   Button,
+  NumberInput,
 } from '@mantine/core';
 import { ValidateCardSelect } from '@/components/ValidateCardSelect';
 import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
@@ -19,10 +20,66 @@ import { ValidationStrategySelect } from '@/components/ValidationStrategySelect'
 import { MemberManagement } from '@/components/MemberManagement';
 import { OtherLinksManagement } from '@/components/OtherLinksManagement';
 import { ImageUpload } from '@/components/ImageUpload';
-import { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import { createProjectSchema } from '@/lib/validations/project';
+import { CreateProjectFormData } from '@/types/project';
 
 export default function CreateProjectPage() {
-  const [projectLogo, setProjectLogo] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setValue,
+    watch,
+  } = useForm<CreateProjectFormData>({
+    resolver: yupResolver(createProjectSchema) as any,
+    defaultValues: {
+      logo: undefined,
+      projectName: '',
+      description: '',
+      tokenName: '',
+      validateType: 'specific',
+      validationStrategy: 'simple',
+      validationPeriodDays: 5,
+      submitterType: 'everyone',
+      defaultHourlyPay: 0,
+      projectOwner: '',
+    },
+  });
+
+  const tokenName = watch('tokenName') || 'TOKEN_NAME';
+
+  const onSubmit = (data: CreateProjectFormData) => {
+    console.log('=== Form Submission ===');
+    console.log('📋 Basic Information:');
+    console.log('  • Logo:', data.logo || 'Not uploaded');
+    console.log('  • Project Name:', data.projectName);
+    console.log('  • Description:', data.description);
+    console.log('  • Token Name:', data.tokenName);
+
+    console.log('⚙️ Validation Settings:');
+    console.log('  • Who can validate:', data.validateType);
+    console.log('  • Validation strategy:', data.validationStrategy);
+    console.log('  • Validation period:', data.validationPeriodDays, 'days');
+
+    console.log('👥 Submission Settings:');
+    console.log('  • Who can submit:', data.submitterType);
+    console.log(
+      '  • Default hourly pay:',
+      data.defaultHourlyPay,
+      data.tokenName + '/hour',
+    );
+
+    console.log('🏢 Team Management:');
+    console.log('  • Project owner:', data.projectOwner || 'Default (creator)');
+
+    console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
+    console.log('======================');
+
+    // TODO: Add API call here
+    alert('Form submitted successfully! Check console for details.');
+  };
 
   return (
     <AppShell header={{ height: 64 }} padding="md">
@@ -42,224 +99,331 @@ export default function CreateProjectPage() {
           >
             Create My Pie
           </Title>
-          <Group align="flex-start" gap={48}>
-            <Title order={2}>Project Information</Title>
-            <Stack style={{ flex: 1, maxWidth: 785 }}>
-              {/* Project Logo Upload */}
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
-                  Project Logo
-                </Text>
-                <Text
-                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 16 }}
-                >
-                  Upload a square logo for your project (recommended size:
-                  200x200px)
-                </Text>
-                <ImageUpload
-                  value={projectLogo}
-                  onChange={setProjectLogo}
-                  size={200}
-                  placeholder="Upload project logo"
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <Group align="flex-start" gap={48}>
+              <Title order={2}>Project Information</Title>
+              <Stack style={{ flex: 1, maxWidth: 785 }}>
+                {/* Project Logo Upload */}
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
+                    Project Logo
+                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                  </Text>
+                  <Text
+                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 16 }}
+                  >
+                    Upload a square logo for your project (recommended size:
+                    200x200px)
+                  </Text>
+                  <Controller
+                    name="logo"
+                    control={control}
+                    render={({ field: { value, onChange } }) => (
+                      <ImageUpload
+                        value={value}
+                        onChange={onChange}
+                        size={200}
+                        placeholder="Upload project logo"
+                      />
+                    )}
+                  />
+                </Box>
+
+                <Controller
+                  name="projectName"
+                  control={control}
+                  render={({ field, fieldState: { error } }) => (
+                    <TextInput
+                      {...field}
+                      label={
+                        <span style={{ fontWeight: 700, fontSize: 16 }}>
+                          Project Name
+                        </span>
+                      }
+                      required
+                      placeholder="Enter project name"
+                      radius="sm"
+                      error={error?.message}
+                    />
+                  )}
                 />
-              </Box>
 
-              <TextInput
-                label={
-                  <span style={{ fontWeight: 700, fontSize: 16 }}>
-                    Project Name
-                  </span>
-                }
-                required
-                placeholder=""
-                radius="sm"
-              />
+                <Controller
+                  name="description"
+                  control={control}
+                  render={({ field, fieldState: { error } }) => (
+                    <Textarea
+                      {...field}
+                      label={
+                        <span style={{ fontWeight: 700, fontSize: 16 }}>
+                          Description
+                        </span>
+                      }
+                      required
+                      description={
+                        <span style={{ color: '#6B7280', fontSize: 16 }}>
+                          No more than 500 characters
+                        </span>
+                      }
+                      placeholder="Describe your project..."
+                      minRows={5}
+                      maxRows={8}
+                      radius="sm"
+                      error={error?.message}
+                    />
+                  )}
+                />
 
-              <Textarea
-                label={
-                  <span style={{ fontWeight: 700, fontSize: 16 }}>
-                    Description
-                  </span>
-                }
-                required
-                description={
-                  <span style={{ color: '#6B7280', fontSize: 16 }}>
-                    No more than 140 words
-                  </span>
-                }
-                minRows={5}
-                maxRows={8}
-                radius="sm"
-              />
+                <Controller
+                  name="tokenName"
+                  control={control}
+                  render={({ field, fieldState: { error } }) => (
+                    <TextInput
+                      {...field}
+                      label={
+                        <span style={{ fontWeight: 700, fontSize: 16 }}>
+                          Token Name
+                        </span>
+                      }
+                      required
+                      description={
+                        <span style={{ color: '#6B7280', fontSize: 16 }}>
+                          Token representing contributions in your project
+                          (doesn&apos;t have to be an on-chain token)
+                        </span>
+                      }
+                      placeholder="TOKEN_NAME"
+                      radius="sm"
+                      styles={{
+                        input: {
+                          width: '160px',
+                        },
+                      }}
+                      error={error?.message}
+                    />
+                  )}
+                />
 
-              <TextInput
-                label={
-                  <span style={{ fontWeight: 700, fontSize: 16 }}>
-                    Token Name
-                  </span>
-                }
-                required
-                description={
-                  <span style={{ color: '#6B7280', fontSize: 16 }}>
-                    Token representing contributions in your project
-                    (doesn&apos;t have to be an on-chain token)
-                  </span>
-                }
-                placeholder="TOKEN_NAME"
-                radius="sm"
-                styles={{
-                  input: {
-                    width: '160px',
-                  },
-                }}
-              />
-
-              {/* Who can validate contributions? */}
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                  Who can validate contributions?
-                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                </Text>
-                <Text
-                  style={{
-                    color: '#6B7280',
-                    fontSize: 14,
-                    marginBottom: 8,
-                  }}
-                >
-                  In FairSharing, contributions must be validated before
-                  they&apos;re recorded on-chain. Select who will have the
-                  authority to validate contributions for your project.
-                </Text>
-                <ValidateCardSelect />
-              </Box>
-
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                  Validation Approval Strategy
-                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                </Text>
-                <Text
-                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
-                >
-                  If you need furthur customization, please contact the
-                  Fairsharing team.
-                </Text>
-                <ValidationStrategySelect />
-              </Box>
-
-              {/* Validation Period */}
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                  Validation Period
-                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                </Text>
-                <Group align="center" mt={8} mb={8}>
-                  <TextInput
-                    placeholder="5"
-                    style={{ width: 100 }}
-                    radius="sm"
-                    size="sm"
-                  />
-                  <Text fw={800} style={{ color: '#6B7280' }}>
-                    Days
+                {/* Who can validate contributions? */}
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                    Who can validate contributions?
+                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
                   </Text>
-                </Group>
-              </Box>
-
-              {/* Who can submit contributions? */}
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
-                  Who can submit contributions?
-                  <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                </Text>
-                <SubmitterCardSelect />
-              </Box>
-
-              {/* Default Hourly Pay */}
-              <Box>
-                <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                  Default Hourly Pay
-                </Text>
-                <Text
-                  style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
-                >
-                  Used to calculate contribution value as &apos;hours worked ×
-                  hourly rate&apos;. You can later set custom rates for each
-                  contributor. If left blank or set to 0, contributors can claim
-                  tokens freely.
-                </Text>
-                <Group align="center" mt={8}>
-                  <TextInput
-                    placeholder="0"
-                    style={{ width: 120 }}
-                    radius="sm"
-                    size="sm"
-                  />
-                  <Text style={{ color: '#6B7280', fontWeight: 800 }}>
-                    TOKEN_NAME/hour
+                  <Text
+                    style={{
+                      color: '#6B7280',
+                      fontSize: 14,
+                      marginBottom: 8,
+                    }}
+                  >
+                    In FairSharing, contributions must be validated before
+                    they&apos;re recorded on-chain. Select who will have the
+                    authority to validate contributions for your project.
                   </Text>
-                </Group>
+                  <Controller
+                    name="validateType"
+                    control={control}
+                    render={({
+                      field: { value, onChange },
+                      fieldState: { error },
+                    }) => (
+                      <ValidateCardSelect
+                        value={value}
+                        onChange={onChange}
+                        error={error?.message}
+                      />
+                    )}
+                  />
+                </Box>
+
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                    Validation Approval Strategy
+                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                  </Text>
+                  <Text
+                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
+                  >
+                    If you need furthur customization, please contact the
+                    Fairsharing team.
+                  </Text>
+                  <Controller
+                    name="validationStrategy"
+                    control={control}
+                    render={({
+                      field: { value, onChange },
+                      fieldState: { error },
+                    }) => (
+                      <ValidationStrategySelect
+                        value={value}
+                        onChange={onChange}
+                        error={error?.message}
+                      />
+                    )}
+                  />
+                </Box>
+
+                {/* Validation Period */}
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                    Validation Period
+                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                  </Text>
+                  <Group align="center" mt={8} mb={8}>
+                    <Controller
+                      name="validationPeriodDays"
+                      control={control}
+                      render={({ field, fieldState: { error } }) => (
+                        <NumberInput
+                          {...field}
+                          placeholder="5"
+                          style={{ width: 100 }}
+                          radius="sm"
+                          size="sm"
+                          min={1}
+                          max={365}
+                          error={error?.message}
+                        />
+                      )}
+                    />
+                    <Text fw={800} style={{ color: '#6B7280' }}>
+                      Days
+                    </Text>
+                  </Group>
+                </Box>
+
+                {/* Who can submit contributions? */}
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
+                    Who can submit contributions?
+                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
+                  </Text>
+                  <Controller
+                    name="submitterType"
+                    control={control}
+                    render={({
+                      field: { value, onChange },
+                      fieldState: { error },
+                    }) => (
+                      <SubmitterCardSelect
+                        value={value}
+                        onChange={onChange}
+                        error={error?.message}
+                      />
+                    )}
+                  />
+                </Box>
+
+                {/* Default Hourly Pay */}
+                <Box>
+                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
+                    Default Hourly Pay
+                  </Text>
+                  <Text
+                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
+                  >
+                    Used to calculate contribution value as &apos;hours worked ×
+                    hourly rate&apos;. You can later set custom rates for each
+                    contributor. If left blank or set to 0, contributors can
+                    claim tokens freely.
+                  </Text>
+                  <Group align="center" mt={8}>
+                    <Controller
+                      name="defaultHourlyPay"
+                      control={control}
+                      render={({ field, fieldState: { error } }) => (
+                        <NumberInput
+                          {...field}
+                          placeholder="0"
+                          style={{ width: 120 }}
+                          radius="sm"
+                          size="sm"
+                          min={0}
+                          max={10000}
+                          error={error?.message}
+                        />
+                      )}
+                    />
+                    <Text style={{ color: '#6B7280', fontWeight: 800 }}>
+                      {tokenName}/hour
+                    </Text>
+                  </Group>
+                </Box>
+              </Stack>
+            </Group>
+            {/* Team Member Section */}
+            <Group align="flex-start" gap={48} mt={56}>
+              <Box style={{ minWidth: 260 }}>
+                <Title order={2}>Team Member</Title>
+                <Text c="#6B7280" style={{ fontSize: 14 }}>
+                  This part is optional.
+                  <br />
+                  You can edit it later in the project page.
+                </Text>
               </Box>
-            </Stack>
-          </Group>
-          {/* Team Member Section */}
-          <Group align="flex-start" gap={48} mt={56}>
-            <Box style={{ minWidth: 260 }}>
-              <Title order={2}>Team Member</Title>
-              <Text c="#6B7280" style={{ fontSize: 14 }}>
-                This part is optional.
-                <br />
-                You can edit it later in the project page.
-              </Text>
-            </Box>
-            <Box style={{ flex: 1, maxWidth: 785 }}>
-              <TextInput
-                label={
-                  <span style={{ fontWeight: 700, fontSize: 16 }}>
-                    Project Owner (Wallet address or ENS)
-                  </span>
-                }
-                description={
-                  <span style={{ color: '#6B7280', fontSize: 14 }}>
-                    Defaults to the project creator.
-                  </span>
-                }
-                placeholder="0x123456"
-                radius="sm"
-                size="md"
-              />
+              <Box style={{ flex: 1, maxWidth: 785 }}>
+                <Controller
+                  name="projectOwner"
+                  control={control}
+                  render={({ field, fieldState: { error } }) => (
+                    <TextInput
+                      {...field}
+                      label={
+                        <span style={{ fontWeight: 700, fontSize: 16 }}>
+                          Project Owner (Wallet address or ENS)
+                        </span>
+                      }
+                      description={
+                        <span style={{ color: '#6B7280', fontSize: 14 }}>
+                          Defaults to the project creator.
+                        </span>
+                      }
+                      placeholder="0x123456... or username.eth"
+                      radius="sm"
+                      size="md"
+                      error={error?.message}
+                    />
+                  )}
+                />
 
-              {/* Member Management */}
-              <Box mt={24}>
-                <MemberManagement />
+                {/* Member Management */}
+                <Box mt={24}>
+                  <MemberManagement />
+                </Box>
               </Box>
-            </Box>
-          </Group>
+            </Group>
 
-          {/* Other Links Section */}
-          <Group align="flex-start" gap={48} mt={56}>
-            <Box style={{ minWidth: 260 }}>
-              <Title order={2}>Other Links</Title>
-              <Text c="#6B7280" style={{ fontSize: 14 }}>
-                This part is optional.
-                <br />
-                You can edit it later in the project page.
-              </Text>
-            </Box>
-            <Box style={{ flex: 1, maxWidth: 785 }}>
-              <OtherLinksManagement />
-            </Box>
-          </Group>
+            {/* Other Links Section */}
+            <Group align="flex-start" gap={48} mt={56}>
+              <Box style={{ minWidth: 260 }}>
+                <Title order={2}>Other Links</Title>
+                <Text c="#6B7280" style={{ fontSize: 14 }}>
+                  This part is optional.
+                  <br />
+                  You can edit it later in the project page.
+                </Text>
+              </Box>
+              <Box style={{ flex: 1, maxWidth: 785 }}>
+                <OtherLinksManagement />
+              </Box>
+            </Group>
 
-          <Group justify="flex-end" gap={48} mt={24}>
-            <Box style={{ minWidth: 260 }}></Box>
-            <Box style={{ flex: 1 }}>
-              <Button size="md" radius="md" color="secondary">
-                Create My Pie
-              </Button>
-            </Box>
-          </Group>
+            <Group justify="flex-end" gap={48} mt={24}>
+              <Box style={{ minWidth: 260 }}></Box>
+              <Box style={{ flex: 1 }}>
+                <Button
+                  type="submit"
+                  size="md"
+                  radius="md"
+                  color="secondary"
+                  loading={isSubmitting}
+                >
+                  Create My Pie
+                </Button>
+              </Box>
+            </Group>
+          </form>
         </Container>
       </AppShell.Main>
 

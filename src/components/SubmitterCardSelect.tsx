@@ -1,9 +1,17 @@
-import { useState } from 'react';
 import { IconLock } from '@tabler/icons-react';
 import { CardSelect } from './CardSelect';
 
-function SubmitterCardSelect() {
-  const [value, setValue] = useState<'everyone' | 'restricted'>('everyone');
+interface SubmitterCardSelectProps {
+  value?: 'everyone' | 'restricted';
+  onChange?: (value: 'everyone' | 'restricted') => void;
+  error?: string;
+}
+
+function SubmitterCardSelect({
+  value = 'everyone',
+  onChange,
+  error,
+}: SubmitterCardSelectProps) {
   const options: {
     key: 'everyone' | 'restricted';
     icon: React.ReactNode;
@@ -23,11 +31,13 @@ function SubmitterCardSelect() {
       description: 'Only members invited to this project',
     },
   ];
+
   return (
     <CardSelect
       options={options}
       value={value}
-      onChange={setValue as (v: 'everyone' | 'restricted') => void}
+      onChange={onChange as (v: 'everyone' | 'restricted') => void}
+      error={error}
     />
   );
 }

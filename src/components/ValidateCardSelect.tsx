@@ -1,9 +1,17 @@
-import { useState } from 'react';
 import { IconUser } from '@tabler/icons-react';
 import { CardSelect } from './CardSelect';
 
-function ValidateCardSelect() {
-  const [value, setValue] = useState<'specific' | 'all'>('specific');
+interface ValidateCardSelectProps {
+  value?: 'specific' | 'all';
+  onChange?: (value: 'specific' | 'all') => void;
+  error?: string;
+}
+
+function ValidateCardSelect({
+  value = 'specific',
+  onChange,
+  error,
+}: ValidateCardSelectProps) {
   const options: {
     key: 'specific' | 'all';
     icon: React.ReactNode;
@@ -23,11 +31,13 @@ function ValidateCardSelect() {
       description: 'Anyone contributed to this project',
     },
   ];
+
   return (
     <CardSelect
       options={options}
       value={value}
-      onChange={setValue as (v: 'specific' | 'all') => void}
+      onChange={onChange as (v: 'specific' | 'all') => void}
+      error={error}
     />
   );
 }

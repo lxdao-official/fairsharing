@@ -1,8 +1,16 @@
-import { useState } from 'react';
-import { Radio } from '@mantine/core';
+import { Radio, Text } from '@mantine/core';
 
-function ValidationStrategySelect() {
-  const [value, setValue] = useState('simple');
+interface ValidationStrategySelectProps {
+  value?: string;
+  onChange?: (value: string) => void;
+  error?: string;
+}
+
+function ValidationStrategySelect({
+  value = 'simple',
+  onChange,
+  error,
+}: ValidationStrategySelectProps) {
   const options = [
     {
       key: 'simple',
@@ -25,27 +33,35 @@ function ValidationStrategySelect() {
       desc: "Whichever option has the most votes wins — even if it's less than 50%.",
     },
   ];
+
   return (
-    <Radio.Group value={value} onChange={setValue}>
-      {options.map((opt) => (
-        <Radio
-          key={opt.key}
-          value={opt.key}
-          label={
-            <span>
-              <span style={{ fontWeight: 700, fontSize: 16 }}>
-                {opt.label}:
+    <div>
+      <Radio.Group value={value} onChange={onChange}>
+        {options.map((opt) => (
+          <Radio
+            key={opt.key}
+            value={opt.key}
+            label={
+              <span>
+                <span style={{ fontWeight: 700, fontSize: 16 }}>
+                  {opt.label}:
+                </span>
+                <span style={{ color: '#222', fontSize: 16, marginLeft: 4 }}>
+                  {opt.desc}
+                </span>
               </span>
-              <span style={{ color: '#222', fontSize: 16, marginLeft: 4 }}>
-                {opt.desc}
-              </span>
-            </span>
-          }
-          mb={8}
-          color="secondary"
-        />
-      ))}
-    </Radio.Group>
+            }
+            mb={8}
+            color="secondary"
+          />
+        ))}
+      </Radio.Group>
+      {error && (
+        <Text c="red" size="sm" mt={4}>
+          {error}
+        </Text>
+      )}
+    </div>
   );
 }
 

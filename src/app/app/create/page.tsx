@@ -13,6 +13,7 @@ import {
   Box,
   Button,
   NumberInput,
+  Alert,
 } from '@mantine/core';
 import { ValidateCardSelect } from '@/components/ValidateCardSelect';
 import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
@@ -28,9 +29,11 @@ import { CreateProjectFormData } from '@/types/project';
 import { trpc } from '@/utils/trpc';
 import { useAccount } from 'wagmi';
 import { useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function CreateProjectPage() {
   const { address } = useAccount();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const createProjectMutation = trpc.project.create.useMutation();
 
   const {
@@ -72,6 +75,14 @@ export default function CreateProjectPage() {
     console.log('Form Errors:', errors);
     console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
 
+    // Check authentication before submitting
+    if (!isAuthenticated) {
+      alert(
+        'Please connect your wallet and sign to authenticate before creating a project.',
+      );
+      return;
+    }
+
     try {
       const result = await createProjectMutation.mutateAsync({
         ...data,
@@ -89,9 +100,21 @@ export default function CreateProjectPage() {
 
       // Optionally redirect to the project page
       // window.location.href = `/app/${result.project.key}`;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error creating project:', error);
-      alert('Failed to create project. Please try again.');
+
+      // More specific error messages
+      if (error?.message?.includes('No authentication token')) {
+        alert(
+          'Authentication failed. Please reconnect your wallet and try again.',
+        );
+      } else if (error?.message?.includes('UNAUTHORIZED')) {
+        alert(
+          'You are not authorized to perform this action. Please sign in again.',
+        );
+      } else {
+        alert(`Failed to create project: ${error?.message || 'Unknown error'}`);
+      }
     }
   };
 
@@ -127,6 +150,14 @@ export default function CreateProjectPage() {
           >
             Create My Pie
           </Title>
+
+          {!isAuthenticated && !authLoading && (
+            <Alert color="yellow" mb="xl">
+              Please connect your wallet and sign the authentication message to
+              create a project.
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit, onError)}>
             <Group align="flex-start" gap={48}>
               <Title order={2}>Project Information</Title>
@@ -482,11 +513,24 @@ export default function CreateProjectPage() {
                   size="md"
                   radius="md"
                   color="secondary"
-                  loading={isSubmitting || createProjectMutation.isPending}
-                  disabled={isSubmitting || createProjectMutation.isPending}
+                  loading={
+                    isSubmitting ||
+                    createProjectMutation.isPending ||
+                    authLoading
+                  }
+                  disabled={
+                    isSubmitting ||
+                    createProjectMutation.isPending ||
+                    authLoading ||
+                    !isAuthenticated
+                  }
                 >
-                  {createProjectMutation.isPending
+                  {authLoading
+                    ? 'Loading...'
+                    : createProjectMutation.isPending
                     ? 'Creating...'
+                    : !isAuthenticated
+                    ? 'Connect Wallet to Create'
                     : 'Create My Pie'}
                 </Button>
               </Box>

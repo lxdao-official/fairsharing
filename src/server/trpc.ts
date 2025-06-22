@@ -1,30 +1,19 @@
 import { initTRPC } from '@trpc/server';
 
-// Define the base context type
-export interface Context {
-  req?: any;
-  res?: any;
-}
-
-// Define the authenticated context type
-export interface AuthenticatedContext extends Context {
-  user: {
-    id: string;
-    walletAddress: string;
-    ensName: string | null;
-    name: string | null;
-    avatar: string | null;
-    bio: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  };
-  session: {
-    userId: string;
-    walletAddress: string;
-  };
-}
-
-const t = initTRPC.context<Context>().create();
+const t = initTRPC.context<any>().create({
+  errorFormatter: ({ shape, error }) => {
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        // In production, don't include stack traces
+        ...(process.env.NODE_ENV === 'production'
+          ? {}
+          : { stack: error.stack }),
+      },
+    };
+  },
+});
 
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;

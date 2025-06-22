@@ -1,15 +1,37 @@
 import { TRPCError } from '@trpc/server';
 import { verifyJWT, extractBearerToken } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { t, Context, AuthenticatedContext } from './trpc';
+import { t } from './trpc';
+
+// Define the authenticated context type
+interface AuthenticatedContext {
+  req?: any;
+  user: {
+    id: string;
+    walletAddress: string;
+    ensName: string | null;
+    name: string | null;
+    avatar: string | null;
+    bio: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  session: {
+    userId: string;
+    walletAddress: string;
+  };
+}
 
 /**
  * Authentication middleware - validates JWT token and retrieves user information
  */
 export const authMiddleware = t.middleware(
-  async ({ ctx, next }: { ctx: Context; next: any }) => {
+  async ({ ctx, next }: { ctx: any; next: any }) => {
     // Extract token from request headers (server-side only)
-    const token = extractBearerToken(ctx.req?.headers?.authorization);
+    // ctx.req.headers is a Web API Headers object, use .get() method
+    const authHeader = ctx.req?.headers?.get('authorization');
+    console.log('🔑 Token header:', authHeader);
+    const token = extractBearerToken(authHeader);
 
     if (!token) {
       throw new TRPCError({

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter } from '../trpc';
+import { createTRPCRouter, publicProcedure } from '../trpc';
 import { protectedProcedure } from '../middleware';
 import { db } from '@/lib/db';
 import {
@@ -327,7 +327,7 @@ export const projectRouter = createTRPCRouter({
     }),
 
   // Unified project list with filtering
-  list: protectedProcedure
+  list: publicProcedure
     .input(
       z.object({
         filter: z.enum(['all', 'my', 'following']).default('all'),
@@ -385,20 +385,14 @@ export const projectRouter = createTRPCRouter({
       // Build orderBy based on sortBy
       let orderBy: any = { createdAt: 'desc' };
       if (sortBy === 'popularity') {
-        orderBy = [
-          { followers: { _count: 'desc' } },
-          { createdAt: 'desc' },
-        ];
+        orderBy = [{ followers: { _count: 'desc' } }, { createdAt: 'desc' }];
       } else if (sortBy === 'contributions') {
         orderBy = [
           { contributions: { _count: 'desc' } },
           { createdAt: 'desc' },
         ];
       } else if (sortBy === 'members') {
-        orderBy = [
-          { members: { _count: 'desc' } },
-          { createdAt: 'desc' },
-        ];
+        orderBy = [{ members: { _count: 'desc' } }, { createdAt: 'desc' }];
       }
 
       // Execute query with pagination

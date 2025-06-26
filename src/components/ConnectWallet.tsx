@@ -12,37 +12,11 @@ export function ConnectWallet() {
   const { address, isConnected } = useAccount();
   const { session, isAuthenticated, setSession } = useAuth();
   const { signMessageAsync } = useSignMessage();
-  const [isSigningAttempted, setIsSigningAttempted] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // tRPC hooks
   const utils = trpc.useUtils();
   const authenticateMutation = trpc.user.authenticate.useMutation();
-
-  // Handle automatic authentication attempt when wallet connects
-  useEffect(() => {
-    const handleAutoAuthentication = async () => {
-      if (!address) return;
-
-      setIsSigningAttempted(true);
-      try {
-        await performAuthentication(address);
-      } catch {
-        console.log('Auto authentication failed, user can try manual sign');
-      }
-    };
-
-    if (isConnected && address && !isAuthenticated && !isSigningAttempted) {
-      handleAutoAuthentication();
-    }
-  }, [isConnected, address, isAuthenticated, isSigningAttempted]);
-
-  // Reset signing attempt when wallet disconnects
-  useEffect(() => {
-    if (!isConnected) {
-      setIsSigningAttempted(false);
-    }
-  }, [isConnected]);
 
   const handleManualSign = async () => {
     if (!address) return;
@@ -85,12 +59,6 @@ export function ConnectWallet() {
     }
   };
 
-  // Uncomment if needed for logout functionality
-  // const handleDisconnect = () => {
-  //   clearSession();
-  //   setIsSigningAttempted(false);
-  // };
-
   return (
     <div>
       <ConnectKitButton.Custom>
@@ -109,13 +77,8 @@ export function ConnectWallet() {
             );
           }
 
-          // Connected but not authenticated and auto-sign failed
-          if (
-            isConnected &&
-            !isAuthenticated &&
-            isSigningAttempted &&
-            !isAuthenticating
-          ) {
+          // Connected but not authenticated
+          if (isConnected && !isAuthenticated && !isAuthenticating) {
             return (
               <Button onClick={handleManualSign} variant="filled" size="md">
                 Sign to Authenticate

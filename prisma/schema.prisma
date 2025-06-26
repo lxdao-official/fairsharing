@@ -26,6 +26,7 @@ model User {
   contributions  ContributionContributor[]
   votes          Vote[]
   projectMembers ProjectMember[]
+  projectFollows ProjectFollow[]
 
   @@index([createdAt(sort: Desc)], map: "idx_user_created_desc")
   @@index([deletedAt])
@@ -51,6 +52,7 @@ model Project {
   owner            User                  @relation("ProjectOwner", fields: [ownerId], references: [id])
   contributions    Contribution[]
   members          ProjectMember[]
+  followers        ProjectFollow[]
   defaultHourRate  Float?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
@@ -104,6 +106,27 @@ enum MemberRole {
   ADMIN
   VALIDATOR
   CONTRIBUTOR
+}
+
+///////////////////////
+//  ProjectFollow    //
+///////////////////////
+model ProjectFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([createdAt(sort: Desc)])
+  @@index([deletedAt])
+  @@map("project_follows")
 }
 
 ///////////////////////

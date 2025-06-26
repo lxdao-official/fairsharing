@@ -8,6 +8,8 @@ import {
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { trpc } from '@/utils/trpc';
+import { useAccount } from 'wagmi';
 
 interface ProjectCardProps {
   title: string;
@@ -16,7 +18,6 @@ interface ProjectCardProps {
   contributions: string;
   pieBakers: string;
   logo?: string;
-
   isFollowed?: boolean;
   onFollow?: () => void;
   onClick?: () => void;
@@ -34,12 +35,38 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const [followed, setFollowed] = useState(isFollowed);
   const [isHovered, setIsHovered] = useState(false);
+  const { isConnected } = useAccount();
 
-  const handleFollow = (e: React.MouseEvent) => {
+  // TRPC mutations for follow/unfollow
+  const followMutation = trpc.project.follow.useMutation();
+  const unfollowMutation = trpc.project.unfollow.useMutation();
+
+  const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setFollowed(!followed);
-    onFollow?.();
+
+    if (!isConnected) {
+      // Could show login modal here
+      return;
+    }
+
+    try {
+      if (followed) {
+        await unfollowMutation.mutateAsync({ projectKey: id });
+        setFollowed(false);
+        onFollow?.();
+      } else {
+        await followMutation.mutateAsync({ projectKey: id });
+        setFollowed(true);
+        onFollow?.();
+      }
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+      // Could show error notification here
+    }
   };
+
+  const isFollowLoading =
+    followMutation.isPending || unfollowMutation.isPending;
 
   return (
     <Card
@@ -71,6 +98,8 @@ export function ProjectCard({
           size="xs"
           radius="md"
           onClick={handleFollow}
+          disabled={isFollowLoading || !isConnected}
+          loading={isFollowLoading}
           rightSection={
             followed ? (
               <IconBookmarkFilled size={14} />
@@ -85,13 +114,14 @@ export function ProjectCard({
               color: followed ? '#000' : '#666',
               border: followed ? 'none' : '1px solid #ddd',
               fontWeight: 600,
+              opacity: !isConnected ? 0.5 : 1,
               '&:hover': {
                 backgroundColor: followed ? '#FACC15' : '#f8f9fa',
               },
             },
           }}
         >
-          {followed ? 'Followed' : 'Follow'}
+          {!isConnected ? 'Connect Wallet' : followed ? 'Followed' : 'Follow'}
         </Button>
       </Group>
 

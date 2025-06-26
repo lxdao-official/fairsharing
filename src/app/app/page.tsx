@@ -17,18 +17,18 @@ import { Header } from '../../components/Header';
 import { Footer } from '@/components/Footer';
 import { SearchBar } from '../../components/SearchBar';
 import { ProjectCard } from '../../components/ProjectCard';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAccount } from 'wagmi';
+import { trpc } from '@/utils/trpc';
+import { useDebounce } from '@/hooks/useDebounce';
 
-// Mock data for projects
-const mockProjects = Array.from({ length: 100 }, (_, i) => ({
-  id: i + 1,
-  title: 'LXDAO Working Group',
-  description: 'The working group of LXDAO.',
-  contributions: '1.2k',
-  pieBakers: '100',
-  isFollowed: i % 5 === 0, // Some cards are followed
-}));
+// Define sort options mapping
+const sortOptions = {
+  Popularity: 'popularity',
+  Recent: 'recent',
+  Contributions: 'contributions',
+  'Pie Bakers': 'members',
+} as const;
 
 function TabButton({
   active,
@@ -70,31 +70,54 @@ export default function AppPage() {
   const [sortBy, setSortBy] = useState('Popularity');
   const [currentPage, setCurrentPage] = useState(1);
   const [tab, setTab] = useState<'my' | 'following' | 'all'>('all');
-  const itemsPerPage = 12;
   const { isConnected } = useAccount();
 
-  const myProjects = mockProjects.filter((p) => p.id % 3 === 0);
-  const followingProjects = mockProjects.filter((p) => p.isFollowed);
+  // Debounce search input
+  const debouncedSearch = useDebounce(searchValue, 300);
 
-  let tabProjects = mockProjects;
-  if (isConnected) {
-    if (tab === 'my') tabProjects = myProjects;
-    else if (tab === 'following') tabProjects = followingProjects;
-    else if (tab === 'all') tabProjects = mockProjects;
-  }
+  // TRPC query for projects
+  const {
+    data: projectData,
+    isLoading,
+    error,
+    refetch,
+  } = trpc.project.list.useQuery({
+    filter: tab,
+    search: debouncedSearch || undefined,
+    sortBy: sortOptions[sortBy as keyof typeof sortOptions],
+    page: currentPage,
+    limit: 12,
+  }) as any;
 
-  // Filter and paginate projects
-  const filteredProjects = tabProjects.filter(
-    (project) =>
-      project.title.toLowerCase().includes(searchValue.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const projects = projectData?.projects || [];
+  const pagination = projectData?.pagination;
 
-  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentProjects = filteredProjects.filter(
-    (_, index) => index >= startIndex && index < startIndex + itemsPerPage
-  );
+  // Reset page when dependencies change
+  useMemo(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [tab, debouncedSearch, sortBy]);
+
+  // Format numbers for display
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'k';
+    }
+    return num.toString();
+  };
+
+  // Get counts for tabs
+  const getTabCounts = () => {
+    // This would need separate queries for exact counts, but for now use approximation
+    return {
+      my: 0, // Could be fetched separately
+      following: 0, // Could be fetched separately
+      all: pagination?.total || 0,
+    };
+  };
+
+  const tabCounts = getTabCounts();
 
   return (
     <AppShell header={{ height: 64 }} padding="md">
@@ -176,7 +199,7 @@ export default function AppPage() {
                       active={tab === 'my'}
                       onClick={() => setTab('my')}
                     >
-                      My Pie ({myProjects.length})
+                      My Pie ({tabCounts.my})
                     </TabButton>
                     <TabButton
                       active={tab === 'following'}
@@ -188,7 +211,7 @@ export default function AppPage() {
                       active={tab === 'all'}
                       onClick={() => setTab('all')}
                     >
-                      All Projects ({filteredProjects.length})
+                      All Projects ({tabCounts.all})
                     </TabButton>
                   </Group>
                 ) : (
@@ -196,7 +219,7 @@ export default function AppPage() {
                     active={tab === 'all'}
                     onClick={() => setTab('all')}
                   >
-                    All Projects ({filteredProjects.length})
+                    All Projects ({tabCounts.all})
                   </TabButton>
                 )}
                 <Group gap="sm">
@@ -226,38 +249,72 @@ export default function AppPage() {
               </Group>
 
               {/* Project Grid */}
-              <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="lg">
-                {currentProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    id={project.id.toString()}
-                    title={project.title}
-                    description={project.description}
-                    contributions={project.contributions}
-                    pieBakers={project.pieBakers}
-                    isFollowed={project.isFollowed}
-                    onFollow={() => console.log(`Follow project ${project.id}`)}
-                    onClick={() => console.log(`Click project ${project.id}`)}
-                  />
-                ))}
-              </SimpleGrid>
+              {isLoading ? (
+                <SimpleGrid
+                  cols={{ base: 1, sm: 2, md: 3, lg: 4 }}
+                  spacing="lg"
+                >
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-80 bg-gray-100 rounded-xl animate-pulse"
+                    />
+                  ))}
+                </SimpleGrid>
+              ) : error ? (
+                <div className="text-center py-8">
+                  <Text c="red">Failed to load projects</Text>
+                  <Button onClick={() => refetch()} mt="md">
+                    Try Again
+                  </Button>
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="text-center py-8">
+                  <Text c="dimmed">No projects found</Text>
+                </div>
+              ) : (
+                <SimpleGrid
+                  cols={{ base: 1, sm: 2, md: 3, lg: 4 }}
+                  spacing="lg"
+                >
+                  {projects.map((project: any) => (
+                    <ProjectCard
+                      key={project.id}
+                      id={project.key}
+                      title={project.name}
+                      description={project.description}
+                      logo={project.logo || undefined}
+                      contributions={formatNumber(project._count.contributions)}
+                      pieBakers={formatNumber(project._count.members)}
+                      isFollowed={project.isFollowed}
+                      onFollow={() => {
+                        // Refetch the data to update counts and follow status
+                        refetch();
+                      }}
+                      onClick={() =>
+                        console.log(`Click project ${project.key}`)
+                      }
+                    />
+                  ))}
+                </SimpleGrid>
+              )}
 
               {/* Pagination */}
-              {totalPages > 1 && (
+              {pagination && pagination.totalPages > 1 && (
                 <Center mt="xl">
                   <Group gap="xs">
                     <Text size="sm" c="dimmed">
-                      {startIndex + 1}-
+                      {(currentPage - 1) * pagination.limit + 1}-
                       {Math.min(
-                        startIndex + itemsPerPage,
-                        filteredProjects.length
+                        currentPage * pagination.limit,
+                        pagination.total,
                       )}{' '}
-                      of {filteredProjects.length}
+                      of {pagination.total}
                     </Text>
                     <Pagination
                       value={currentPage}
                       onChange={setCurrentPage}
-                      total={totalPages}
+                      total={pagination.totalPages}
                       size="sm"
                       styles={{
                         control: {

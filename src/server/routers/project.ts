@@ -326,13 +326,32 @@ export const projectRouter = createTRPCRouter({
       return project;
     }),
 
-  // List user's projects
-  listMy: protectedProcedure.query(async ({ ctx }: { ctx: any }) => {
-    const userId = ctx.user?.id;
+  // Unified project list with filtering
+  list: protectedProcedure
+    .input(
+      z.object({
+        filter: z.enum(['all', 'my', 'following']).default('all'),
+        search: z.string().optional(),
+        sortBy: z
+          .enum(['popularity', 'recent', 'contributions', 'members'])
+          .default('recent'),
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(50).default(12),
+      }),
+    )
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
+      const userId = ctx.user?.id;
+      const { filter, search, sortBy, page, limit } = input;
+      const skip = (page - 1) * limit;
 
-    const projects = await db.project.findMany({
-      where: {
-        OR: [
+      // Build where conditions based on filter
+      let whereConditions: any = {
+        deletedAt: null,
+        status: 'ACTIVE',
+      };
+
+      if (filter === 'my') {
+        whereConditions.OR = [
           { ownerId: userId },
           {
             members: {
@@ -342,35 +361,238 @@ export const projectRouter = createTRPCRouter({
               },
             },
           },
-        ],
-        deletedAt: null,
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            walletAddress: true,
-            ensName: true,
-            name: true,
-            avatar: true,
+        ];
+      } else if (filter === 'following') {
+        whereConditions.followers = {
+          some: {
+            userId: userId,
+            deletedAt: null,
           },
-        },
-        _count: {
-          select: {
-            contributions: {
-              where: { deletedAt: null },
-            },
-            members: {
-              where: { deletedAt: null },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        };
+      }
 
-    return projects;
-  }),
+      // Add search conditions
+      if (search && search.trim()) {
+        const searchConditions = {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ],
+        };
+        whereConditions = { ...whereConditions, ...searchConditions };
+      }
+
+      // Build orderBy based on sortBy
+      let orderBy: any = { createdAt: 'desc' };
+      if (sortBy === 'popularity') {
+        orderBy = [
+          { followers: { _count: 'desc' } },
+          { createdAt: 'desc' },
+        ];
+      } else if (sortBy === 'contributions') {
+        orderBy = [
+          { contributions: { _count: 'desc' } },
+          { createdAt: 'desc' },
+        ];
+      } else if (sortBy === 'members') {
+        orderBy = [
+          { members: { _count: 'desc' } },
+          { createdAt: 'desc' },
+        ];
+      }
+
+      // Execute query with pagination
+      const [projects, totalCount] = await Promise.all([
+        db.project.findMany({
+          where: whereConditions,
+          include: {
+            owner: {
+              select: {
+                id: true,
+                walletAddress: true,
+                ensName: true,
+                name: true,
+                avatar: true,
+              },
+            },
+            _count: {
+              select: {
+                contributions: {
+                  where: { deletedAt: null },
+                },
+                members: {
+                  where: { deletedAt: null },
+                },
+                followers: {
+                  where: { deletedAt: null },
+                },
+              },
+            },
+            followers: userId
+              ? {
+                  where: {
+                    userId: userId,
+                    deletedAt: null,
+                  },
+                  select: {
+                    id: true,
+                  },
+                }
+              : false,
+          },
+          orderBy,
+          skip,
+          take: limit,
+        }),
+        db.project.count({
+          where: whereConditions,
+        }),
+      ]);
+
+      // Add isFollowed flag for authenticated users
+      const projectsWithFollowStatus = projects.map((project) => ({
+        ...project,
+        isFollowed: userId ? project.followers.length > 0 : false,
+        followers: undefined, // Remove followers array from response
+      }));
+
+      return {
+        projects: projectsWithFollowStatus,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          hasNext: page * limit < totalCount,
+          hasPrev: page > 1,
+        },
+      };
+    }),
+
+  // Follow a project
+  follow: protectedProcedure
+    .input(z.object({ projectKey: z.string() }))
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
+      const userId = ctx.user?.id;
+      const { projectKey } = input;
+
+      try {
+        // Find the project
+        const project = await db.project.findUnique({
+          where: { key: projectKey, deletedAt: null },
+        });
+
+        if (!project) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Project not found',
+          });
+        }
+
+        // Check if already following
+        const existingFollow = await db.projectFollow.findUnique({
+          where: {
+            userId_projectId: {
+              userId: userId,
+              projectId: project.id,
+            },
+          },
+        });
+
+        if (existingFollow && !existingFollow.deletedAt) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'Already following this project',
+          });
+        }
+
+        // Create or restore follow relationship
+        if (existingFollow && existingFollow.deletedAt) {
+          // Restore soft-deleted follow
+          await db.projectFollow.update({
+            where: { id: existingFollow.id },
+            data: { deletedAt: null },
+          });
+        } else {
+          // Create new follow
+          await db.projectFollow.create({
+            data: {
+              userId: userId,
+              projectId: project.id,
+            },
+          });
+        }
+
+        return { success: true, message: 'Successfully followed project' };
+      } catch (error) {
+        console.error('Error following project:', error);
+
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to follow project',
+        });
+      }
+    }),
+
+  // Unfollow a project
+  unfollow: protectedProcedure
+    .input(z.object({ projectKey: z.string() }))
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
+      const userId = ctx.user?.id;
+      const { projectKey } = input;
+
+      try {
+        // Find the project
+        const project = await db.project.findUnique({
+          where: { key: projectKey, deletedAt: null },
+        });
+
+        if (!project) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Project not found',
+          });
+        }
+
+        // Find existing follow relationship
+        const existingFollow = await db.projectFollow.findUnique({
+          where: {
+            userId_projectId: {
+              userId: userId,
+              projectId: project.id,
+            },
+          },
+        });
+
+        if (!existingFollow || existingFollow.deletedAt) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Not following this project',
+          });
+        }
+
+        // Soft delete the follow relationship
+        await db.projectFollow.update({
+          where: { id: existingFollow.id },
+          data: { deletedAt: new Date() },
+        });
+
+        return { success: true, message: 'Successfully unfollowed project' };
+      } catch (error) {
+        console.error('Error unfollowing project:', error);
+
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to unfollow project',
+        });
+      }
+    }),
 });

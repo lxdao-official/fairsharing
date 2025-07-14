@@ -21,6 +21,7 @@ import { useState, useMemo } from 'react';
 import { useAccount } from 'wagmi';
 import { trpc } from '@/utils/trpc';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useAuth } from '@/hooks/useAuth';
 
 // Define sort options mapping
 const sortOptions = {
@@ -71,6 +72,7 @@ export default function AppPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [tab, setTab] = useState<'my' | 'following' | 'all'>('all');
   const { isConnected } = useAccount();
+  const { isAuthenticated, user } = useAuth();
 
   // Debounce search input
   const debouncedSearch = useDebounce(searchValue, 300);
@@ -109,12 +111,25 @@ export default function AppPage() {
 
   // Get counts for tabs
   const getTabCounts = () => {
-    // This would need separate queries for exact counts, but for now use approximation
-    return {
-      my: 0, // Could be fetched separately
-      following: 0, // Could be fetched separately
-      all: pagination?.total || 0,
-    };
+    if (tab === 'my') {
+      return {
+        my: pagination?.total || 0,
+        following: 0, // Could be fetched separately
+        all: 0, // Would need separate query
+      };
+    } else if (tab === 'following') {
+      return {
+        my: 0, // Would need separate query
+        following: pagination?.total || 0,
+        all: 0, // Would need separate query
+      };
+    } else {
+      return {
+        my: 0, // Would need separate query
+        following: 0, // Would need separate query
+        all: pagination?.total || 0,
+      };
+    }
   };
 
   const tabCounts = getTabCounts();
@@ -270,7 +285,27 @@ export default function AppPage() {
                 </div>
               ) : projects.length === 0 ? (
                 <div className="text-center py-8">
-                  <Text c="dimmed">No projects found</Text>
+                  {tab === 'my' && !isAuthenticated ? (
+                    <Stack gap="md" align="center">
+                      <Text size="lg" fw={600}>Please connect your wallet to see your projects</Text>
+                      <Text c="dimmed">You need to sign in to view your owned and contributed projects</Text>
+                    </Stack>
+                  ) : tab === 'my' ? (
+                    <Stack gap="md" align="center">
+                      <Text size="lg" fw={600}>You haven't created any projects yet</Text>
+                      <Text c="dimmed">Start your first project and grow your pie together!</Text>
+                      <Button 
+                        component="a" 
+                        href="/app/create"
+                        variant="filled"
+                        color="blue"
+                      >
+                        Create Your First Project
+                      </Button>
+                    </Stack>
+                  ) : (
+                    <Text c="dimmed">No projects found</Text>
+                  )}
                 </div>
               ) : (
                 <SimpleGrid

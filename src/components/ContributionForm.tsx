@@ -10,12 +10,13 @@ import {
   NumberInput,
   Alert,
   Loader,
+  Tooltip,
 } from '@mantine/core';
 import { HoursInput } from '@/components/HoursInput';
 import { ContributorInput } from '@/components/ContributorInput';
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { HashtagInput } from '@/components/HashtagInput';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { trpc } from '@/utils/trpc';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import { useUser } from '@/hooks/useAuth';
@@ -49,9 +50,52 @@ export function ContributionForm({
     initialData.contribution || '',
   );
   const [hours, setHours] = useState<number | string>(initialData.hours || '');
-  const [contributor, setContributor] = useState(
-    initialData.contributor || 'char',
-  );
+  // Determine contributor options based on project settings
+  const getContributorOptions = () => {
+    if (!projectData) return [];
+    
+    const options = [];
+    
+    // Always include current user if authenticated
+    if (user) {
+      options.push({
+        value: user.id,
+        label: user.name || user.ensName || `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+      });
+    }
+    
+    // If submission strategy allows, include project members
+    if (projectData.submissionStrategy === 'EVERYONE' || projectData.submissionStrategy === 'RESTRICTED') {
+      projectData.members?.forEach(member => {
+        if (member.user.id !== user?.id) { // Avoid duplicates
+          options.push({
+            value: member.user.id,
+            label: member.user.name || member.user.ensName || `${member.user.walletAddress.slice(0, 6)}...${member.user.walletAddress.slice(-4)}`
+          });
+        }
+      });
+    }
+    
+    return options;
+  };
+
+  const contributorOptions = getContributorOptions();
+  
+  // Find the label for the initial contributor value
+  const getContributorLabel = (contributorId: string) => {
+    const option = contributorOptions.find(opt => opt.value === contributorId);
+    return option ? option.label : contributorId;
+  };
+  
+  const defaultContributor = initialData.contributor || (user ? getContributorLabel(user.id) : '');
+  
+  const [contributor, setContributor] = useState(defaultContributor);
+  
+  // Helper to get user ID from label
+  const getContributorId = (label: string) => {
+    const option = contributorOptions.find(opt => opt.label === label);
+    return option ? option.value : label;
+  };
   const [date, setDate] = useState<[Date | null, Date | null]>(
     initialData.date || [new Date(), null],
   );
@@ -60,12 +104,35 @@ export function ContributionForm({
     initialData.reward || 0,
   );
 
+  // Auto-calculate points based on hours
+  useEffect(() => {
+    if (hours && typeof hours === 'number' && hours > 0) {
+      // Calculate points based on project's token value or default rate
+      const pointsPerHour = projectData?.tokenValue || 10; // Default 10 points per hour
+      const calculatedPoints = Math.round(hours * pointsPerHour);
+      setReward(calculatedPoints);
+    } else if (typeof hours === 'string' && hours !== '') {
+      const hoursNum = Number(hours);
+      if (!isNaN(hoursNum) && hoursNum > 0) {
+        const pointsPerHour = projectData?.tokenValue || 10;
+        const calculatedPoints = Math.round(hoursNum * pointsPerHour);
+        setReward(calculatedPoints);
+      }
+    }
+  }, [hours, projectData?.tokenValue]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
   const { user } = useUser();
   const utils = trpc.useUtils();
+  
+  // Fetch project data to get members and submission strategy
+  const { data: projectData } = trpc.project.getByKey.useQuery(
+    { key: projectId || '' },
+    { enabled: !!projectId }
+  );
   
   const createContribution = trpc.contribution.create.useMutation({
     onSuccess: () => {
@@ -139,10 +206,10 @@ export function ContributionForm({
       content: contribution,
       hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
       tags: hashtag ? [hashtag] : [],
-      startAt: date[0] || undefined,
-      endAt: date[1] || undefined,
+      startAt: date[0] ? new Date(date[0]) : undefined,
+      endAt: date[1] ? new Date(date[1]) : undefined,
       contributors: [{
-        userId: user.id,
+        userId: getContributorId(contributor) || user?.id || '',
         hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
         points: typeof reward === 'number' ? reward : Number(reward) || undefined,
       }],
@@ -204,6 +271,7 @@ export function ContributionForm({
               value={contributor}
               onChange={setContributor}
               placeholder="Contributor"
+              data={contributorOptions.map(option => option.label)}
             />
           </Box>
 
@@ -267,7 +335,12 @@ export function ContributionForm({
                 },
               }}
             />
-            <Text>LXP</Text>
+            <Tooltip 
+              label={`Auto-calculated: ${projectData?.tokenValue || 10} points per hour`}
+              position="top"
+            >
+              <Text style={{ cursor: 'help' }}>{projectData?.tokenName || 'Points'}</Text>
+            </Tooltip>
           </Group>
 
           {isEditMode ? (

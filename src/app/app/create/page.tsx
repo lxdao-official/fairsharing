@@ -14,6 +14,7 @@ import {
   Button,
   NumberInput,
   Alert,
+  Modal,
 } from '@mantine/core';
 import { ValidateCardSelect } from '@/components/ValidateCardSelect';
 import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
@@ -28,13 +29,18 @@ import { createProjectSchema } from '@/lib/validations/project';
 import { CreateProjectFormData } from '@/types/project';
 import { trpc } from '@/utils/trpc';
 import { useAccount } from 'wagmi';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from 'next/navigation';
 
 export default function CreateProjectPage() {
   const { address } = useAccount();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const createProjectMutation = trpc.project.create.useMutation();
+  const router = useRouter();
+  
+  const [successModal, setSuccessModal] = useState(false);
+  const [createdProject, setCreatedProject] = useState<{name: string, key: string} | null>(null);
 
   const {
     control,
@@ -94,12 +100,16 @@ export default function CreateProjectPage() {
       });
 
       console.log('✅ Project created successfully:', result);
-      alert(
-        `Project "${result.project.name}" created successfully! Project key: ${result.project.key}`,
-      );
-
-      // Optionally redirect to the project page
-      // window.location.href = `/app/${result.project.key}`;
+      setCreatedProject({
+        name: result.project.name,
+        key: result.project.key
+      });
+      setSuccessModal(true);
+      
+      // 3秒后自动跳转
+      setTimeout(() => {
+        router.push(`/app/${result.project.key}`);
+      }, 3000);
     } catch (error: any) {
       console.error('❌ Error creating project:', error);
 
@@ -243,6 +253,13 @@ export default function CreateProjectPage() {
                   render={({ field, fieldState: { error } }) => (
                     <TextInput
                       {...field}
+                      onChange={(event) => {
+                        // 只允许英文字母和数字，自动转换为大写
+                        const value = event.currentTarget.value
+                          .replace(/[^A-Za-z0-9]/g, '')
+                          .toUpperCase();
+                        field.onChange(value);
+                      }}
                       label={
                         <span style={{ fontWeight: 700, fontSize: 16 }}>
                           Token Name
@@ -252,7 +269,7 @@ export default function CreateProjectPage() {
                       description={
                         <span style={{ color: '#6B7280', fontSize: 16 }}>
                           Token representing contributions in your project
-                          (doesn&apos;t have to be an on-chain token)
+                          (Only letters and numbers, automatically converted to uppercase)
                         </span>
                       }
                       placeholder="TOKEN_NAME"
@@ -542,6 +559,34 @@ export default function CreateProjectPage() {
       <AppShell.Footer style={{ position: 'static' }}>
         <Footer />
       </AppShell.Footer>
+
+      {/* Success Modal */}
+      <Modal
+        opened={successModal}
+        onClose={() => setSuccessModal(false)}
+        title="Project Created Successfully! 🎉"
+        centered
+        size="md"
+      >
+        <Stack gap={16}>
+          <Text size="lg">
+            Project <strong>{createdProject?.name}</strong> has been created successfully!
+          </Text>
+          <Text size="sm" c="dimmed">
+            Project Key: <strong>{createdProject?.key}</strong>
+          </Text>
+          <Text size="sm" c="blue">
+            You will be redirected to your project page in 3 seconds...
+          </Text>
+          <Button 
+            onClick={() => router.push(`/app/${createdProject?.key}`)}
+            variant="filled"
+            color="blue"
+          >
+            Go to Project Now
+          </Button>
+        </Stack>
+      </Modal>
     </AppShell>
   );
 }

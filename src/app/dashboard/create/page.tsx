@@ -108,7 +108,7 @@ export default function CreateProjectPage() {
       
       // 3秒后自动跳转
       setTimeout(() => {
-        router.push(`/app/${result.project.key}`);
+        router.push(`/project/${result.project.key}`);
       }, 3000);
     } catch (error: any) {
       console.error('❌ Error creating project:', error);
@@ -579,7 +579,7 @@ export default function CreateProjectPage() {
             You will be redirected to your project page in 3 seconds...
           </Text>
           <Button 
-            onClick={() => router.push(`/app/${createdProject?.key}`)}
+            onClick={() => router.push(`/project/${createdProject?.key}`)}
             variant="filled"
             color="blue"
           >

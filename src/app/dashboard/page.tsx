@@ -292,11 +292,11 @@ export default function AppPage() {
                     </Stack>
                   ) : tab === 'my' ? (
                     <Stack gap="md" align="center">
-                      <Text size="lg" fw={600}>You haven't created any projects yet</Text>
+                      <Text size="lg" fw={600}>You haven&apos;t created any projects yet</Text>
                       <Text c="dimmed">Start your first project and grow your pie together!</Text>
                       <Button 
                         component="a" 
-                        href="/app/create"
+                        href="/dashboard/create"
                         variant="filled"
                         color="blue"
                       >

@@ -87,7 +87,7 @@ export function ProjectCard({
       }}
     >
       <Group justify="space-between" mb="md">
-        <Link href={`/app/${id}`} style={{ textDecoration: 'none' }}>
+        <Link href={`/project/${id}`} style={{ textDecoration: 'none' }}>
           <Avatar src={logo} size={48} radius="md">
             {title.charAt(0)}
           </Avatar>
@@ -125,7 +125,7 @@ export function ProjectCard({
         </Button>
       </Group>
 
-      <Link href={`/app/${id}`} style={{ textDecoration: 'none', flex: 1 }}>
+      <Link href={`/project/${id}`} style={{ textDecoration: 'none', flex: 1 }}>
         <Stack gap="xs" mb="lg" style={{ flex: 1, minHeight: 0 }}>
           <Text fw={700} size="lg" c="dark">
             {title}
@@ -168,7 +168,7 @@ export function ProjectCard({
         </Group>
 
         {isHovered && (
-          <Link href={`/app/${id}`} style={{ textDecoration: 'none' }}>
+          <Link href={`/project/${id}`} style={{ textDecoration: 'none' }}>
             <Button size="sm" radius="md" color="secondary" p={10}>
               <IconArrowRight size={16} />
             </Button>

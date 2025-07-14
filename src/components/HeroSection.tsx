@@ -41,7 +41,7 @@ export function HeroSection() {
         >
           A decentralized way to record, validate, and reward contributions.
         </Text>
-        <Link href="/app" style={{ textDecoration: 'none' }}>
+        <Link href="/dashboard" style={{ textDecoration: 'none' }}>
           <Button size="lg" radius="md" mt={24} color="secondary">
             Launch the App
           </Button>

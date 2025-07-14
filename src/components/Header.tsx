@@ -48,7 +48,7 @@ export function Header() {
             <TelegramIcon />
           </Link>
         </UnstyledButton>
-        <Link href="/app/create" style={{ textDecoration: 'none' }}>
+        <Link href="/dashboard/create" style={{ textDecoration: 'none' }}>
           <Button radius="md" size="md" color="primary">
             Create New Pie
           </Button>

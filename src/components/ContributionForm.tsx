@@ -16,7 +16,7 @@ import { HoursInput } from '@/components/HoursInput';
 import { ContributorInput } from '@/components/ContributorInput';
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { HashtagInput } from '@/components/HashtagInput';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { trpc } from '@/utils/trpc';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import { useUser } from '@/hooks/useAuth';
@@ -50,52 +50,6 @@ export function ContributionForm({
     initialData.contribution || '',
   );
   const [hours, setHours] = useState<number | string>(initialData.hours || '');
-  // Determine contributor options based on project settings
-  const getContributorOptions = () => {
-    if (!projectData) return [];
-    
-    const options = [];
-    
-    // Always include current user if authenticated
-    if (user) {
-      options.push({
-        value: user.id,
-        label: user.name || user.ensName || `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-      });
-    }
-    
-    // If submission strategy allows, include project members
-    if (projectData.submissionStrategy === 'EVERYONE' || projectData.submissionStrategy === 'RESTRICTED') {
-      projectData.members?.forEach(member => {
-        if (member.user.id !== user?.id) { // Avoid duplicates
-          options.push({
-            value: member.user.id,
-            label: member.user.name || member.user.ensName || `${member.user.walletAddress.slice(0, 6)}...${member.user.walletAddress.slice(-4)}`
-          });
-        }
-      });
-    }
-    
-    return options;
-  };
-
-  const contributorOptions = getContributorOptions();
-  
-  // Find the label for the initial contributor value
-  const getContributorLabel = (contributorId: string) => {
-    const option = contributorOptions.find(opt => opt.value === contributorId);
-    return option ? option.label : contributorId;
-  };
-  
-  const defaultContributor = initialData.contributor || (user ? getContributorLabel(user.id) : '');
-  
-  const [contributor, setContributor] = useState(defaultContributor);
-  
-  // Helper to get user ID from label
-  const getContributorId = (label: string) => {
-    const option = contributorOptions.find(opt => opt.label === label);
-    return option ? option.value : label;
-  };
   const [date, setDate] = useState<[Date | null, Date | null]>(
     initialData.date || [new Date(), null],
   );
@@ -104,36 +58,98 @@ export function ContributionForm({
     initialData.reward || 0,
   );
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const { user } = useUser();
+  const utils = trpc.useUtils();
+
+  // Fetch project data to get members and submission strategy
+  const { data: projectData } = trpc.project.get.useQuery(
+    { id: projectId || '' },
+    { enabled: !!projectId },
+  );
+
+  // Determine contributor options based on project settings
+  const contributorOptions = useMemo(() => {
+    if (!projectData) return [];
+
+    const options = [];
+
+    // Always include current user if authenticated
+    if (user) {
+      options.push({
+        value: user.id,
+        label:
+          user.name ||
+          user.ensName ||
+          `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`,
+      });
+    }
+
+    // If submission strategy allows, include project members
+    if (
+      projectData.submitStrategy === 'EVERYONE' ||
+      projectData.submitStrategy === 'RESTRICTED'
+    ) {
+      projectData.members?.forEach((member: any) => {
+        if (member.user.id !== user?.id) {
+          // Avoid duplicates
+          options.push({
+            value: member.user.id,
+            label:
+              member.user.name ||
+              member.user.ensName ||
+              `${member.user.walletAddress.slice(
+                0,
+                6,
+              )}...${member.user.walletAddress.slice(-4)}`,
+          });
+        }
+      });
+    }
+
+    return options;
+  }, [projectData, user]);
+
+  // Helper to get user ID from label
+  const getContributorId = (label: string) => {
+    const option = contributorOptions.find((opt) => opt.label === label);
+    return option ? option.value : label;
+  };
+
+  const [contributor, setContributor] = useState(initialData.contributor || '');
+
+  // Update contributor when user or contributorOptions change
+  useEffect(() => {
+    if (!contributor && user && contributorOptions.length > 0) {
+      const userOption = contributorOptions.find(
+        (opt) => opt.value === user.id,
+      );
+      if (userOption) {
+        setContributor(userOption.label);
+      }
+    }
+  }, [user, contributorOptions, contributor]);
+
   // Auto-calculate points based on hours
   useEffect(() => {
     if (hours && typeof hours === 'number' && hours > 0) {
-      // Calculate points based on project's token value or default rate
-      const pointsPerHour = projectData?.tokenValue || 10; // Default 10 points per hour
+      // Calculate points based on default rate (10 points per hour)
+      const pointsPerHour = 10; // Default 10 points per hour
       const calculatedPoints = Math.round(hours * pointsPerHour);
       setReward(calculatedPoints);
     } else if (typeof hours === 'string' && hours !== '') {
       const hoursNum = Number(hours);
       if (!isNaN(hoursNum) && hoursNum > 0) {
-        const pointsPerHour = projectData?.tokenValue || 10;
+        const pointsPerHour = 10;
         const calculatedPoints = Math.round(hoursNum * pointsPerHour);
         setReward(calculatedPoints);
       }
     }
-  }, [hours, projectData?.tokenValue]);
+  }, [hours]);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  
-  const { user } = useUser();
-  const utils = trpc.useUtils();
-  
-  // Fetch project data to get members and submission strategy
-  const { data: projectData } = trpc.project.getByKey.useQuery(
-    { key: projectId || '' },
-    { enabled: !!projectId }
-  );
-  
   const createContribution = trpc.contribution.create.useMutation({
     onSuccess: () => {
       setSuccess('Contribution submitted successfully!');
@@ -157,7 +173,7 @@ export function ContributionForm({
       setLoading(false);
     },
   });
-  
+
   const updateContribution = trpc.contribution.update.useMutation({
     onSuccess: () => {
       setSuccess('Contribution updated successfully!');
@@ -187,34 +203,37 @@ export function ContributionForm({
       setError('You must be logged in to submit a contribution');
       return;
     }
-    
+
     if (!projectId && !isEditMode) {
       setError('Project ID is required');
       return;
     }
-    
+
     if (!contribution.trim()) {
       setError('Contribution content is required');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     setSuccess(null);
-    
+
     const formData = {
       content: contribution,
       hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
       tags: hashtag ? [hashtag] : [],
       startAt: date[0] ? new Date(date[0]) : undefined,
       endAt: date[1] ? new Date(date[1]) : undefined,
-      contributors: [{
-        userId: getContributorId(contributor) || user?.id || '',
-        hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
-        points: typeof reward === 'number' ? reward : Number(reward) || undefined,
-      }],
+      contributors: [
+        {
+          userId: getContributorId(contributor) || user?.id || '',
+          hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
+          points:
+            typeof reward === 'number' ? reward : Number(reward) || undefined,
+        },
+      ],
     };
-    
+
     if (isEditMode && initialData?.id) {
       updateContribution.mutate({
         id: initialData.id,
@@ -271,7 +290,7 @@ export function ContributionForm({
               value={contributor}
               onChange={setContributor}
               placeholder="Contributor"
-              data={contributorOptions.map(option => option.label)}
+              data={contributorOptions.map((option) => option.label)}
             />
           </Box>
 
@@ -293,14 +312,14 @@ export function ContributionForm({
             />
           </Box>
         </Group>
-        
+
         {/* Error/Success Messages */}
         {error && (
           <Alert color="red" icon={<IconX size={16} />} variant="light">
             {error}
           </Alert>
         )}
-        
+
         {success && (
           <Alert color="green" icon={<IconCheck size={16} />} variant="light">
             {success}
@@ -335,11 +354,13 @@ export function ContributionForm({
                 },
               }}
             />
-            <Tooltip 
-              label={`Auto-calculated: ${projectData?.tokenValue || 10} points per hour`}
+            <Tooltip
+              label={`Auto-calculated: 10 points per hour`}
               position="top"
             >
-              <Text style={{ cursor: 'help' }}>{projectData?.tokenName || 'Points'}</Text>
+              <Text style={{ cursor: 'help' }}>
+                {projectData?.tokenSymbol || 'Points'}
+              </Text>
             </Tooltip>
           </Group>
 
@@ -377,8 +398,10 @@ export function ContributionForm({
               >
                 {loading ? (
                   <Loader size="sm" />
+                ) : isEditMode ? (
+                  'Update'
                 ) : (
-                  isEditMode ? 'Update' : 'Submit'
+                  'Submit'
                 )}
               </Button>
             </Group>
@@ -400,11 +423,7 @@ export function ContributionForm({
                 paddingInline: '32px',
               }}
             >
-              {loading ? (
-                <Loader size="sm" />
-              ) : (
-                'Submit'
-              )}
+              {loading ? <Loader size="sm" /> : 'Submit'}
             </Button>
           )}
         </Group>

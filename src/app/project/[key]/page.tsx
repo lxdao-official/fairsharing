@@ -11,7 +11,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 interface ProjectPageProps {
   params: Promise<{
-    projectName: string;
+    key: string;
   }>;
 }
 
@@ -72,8 +72,8 @@ async function getProjectData(projectKey: string) {
 
 // Main page component with server-side rendering
 export default async function ProjectPage({ params }: ProjectPageProps) {
-  const { projectName } = await params;
-  const projectKey = decodeURIComponent(projectName);
+  const { key } = await params;
+  const projectKey = decodeURIComponent(key);
   
   // Fetch project data on the server
   const project = await getProjectData(projectKey);
@@ -102,8 +102,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
 // Generate metadata for the page
 export async function generateMetadata({ params }: ProjectPageProps) {
-  const { projectName } = await params;
-  const projectKey = decodeURIComponent(projectName);
+  const { key } = await params;
+  const projectKey = decodeURIComponent(key);
   const project = await getProjectData(projectKey);
   
   if (!project) {

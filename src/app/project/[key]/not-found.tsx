@@ -1,3 +1,5 @@
+'use client';
+
 import { Container, Stack, Title, Text, Button, Box } from '@mantine/core';
 import { IconHome, IconArrowLeft } from '@tabler/icons-react';
 import Link from 'next/link';
@@ -21,7 +23,7 @@ export default function ProjectNotFound() {
         <Stack gap={16} align="center">
           <Button
             component={Link}
-            href="/app"
+            href="/dashboard"
             size="md"
             leftSection={<IconHome size={16} />}
             style={{

@@ -273,15 +273,18 @@ export const projectRouter = createTRPCRouter({
       },
     ),
 
-  // Get project by key
-  getByKey: protectedProcedure
-    .input(z.object({ key: z.string() }))
-    .query(async ({ input }: { input: { key: string } }) => {
+  // Get project by key or ID
+  get: publicProcedure
+    .input(z.object({ 
+      key: z.string().optional(),
+      id: z.string().cuid().optional()
+    }).refine(data => data.key || data.id, { message: "Either key or id must be provided" }))
+    .query(async ({ input }: { input: { key?: string; id?: string } }) => {
+      const whereCondition = input.key 
+        ? { key: input.key, deletedAt: null }
+        : { id: input.id, deletedAt: null };
       const project = await db.project.findUnique({
-        where: {
-          key: input.key,
-          deletedAt: null,
-        },
+        where: whereCondition,
         include: {
           owner: {
             select: {
@@ -586,6 +589,207 @@ export const projectRouter = createTRPCRouter({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to unfollow project',
+        });
+      }
+    }),
+
+  // Update project
+  update: protectedProcedure
+    .input(createProjectSchema.extend({
+      id: z.string().cuid(),
+      validateType: z.enum(['specific', 'all']).optional(),
+      validationStrategy: z.enum(['simple', 'quorum', 'absolute', 'relative']).optional(),
+    }))
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
+      const userId = ctx.user?.id;
+
+      try {
+        // Check if project exists and user has permission to edit
+        const existingProject = await db.project.findUnique({
+          where: { id: input.id, deletedAt: null },
+          select: {
+            id: true,
+            ownerId: true,
+            key: true,
+          },
+        });
+
+        if (!existingProject) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Project not found',
+          });
+        }
+
+        if (existingProject.ownerId !== userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to edit this project',
+          });
+        }
+
+        // Generate unique project key if name changed
+        let projectKey = existingProject.key;
+        if (input.projectName) {
+          let newKey = generateProjectKey(input.projectName);
+          
+          // Only change key if it's different and ensure uniqueness
+          if (newKey !== existingProject.key) {
+            let keyExists = await db.project.findUnique({
+              where: { key: newKey },
+            });
+
+            let counter = 1;
+            while (keyExists && keyExists.id !== input.id) {
+              newKey = `${generateProjectKey(input.projectName)}-${counter}`;
+              keyExists = await db.project.findUnique({
+                where: { key: newKey },
+              });
+              counter++;
+            }
+            projectKey = newKey;
+          }
+        }
+
+        // Find or create project owner user if changed
+        let ownerId = existingProject.ownerId;
+        if (input.projectOwner) {
+          const projectOwner = await findOrCreateUser(input.projectOwner);
+          ownerId = projectOwner.id;
+        }
+
+        // Map validation settings (keep existing if not provided)
+        const validateType = input.validateType
+          ? input.validateType === 'specific'
+            ? ProjectValidateType.SPECIFIC_MEMBERS
+            : ProjectValidateType.ALL_MEMBERS
+          : undefined;
+
+        const submitStrategy = input.submitterType
+          ? input.submitterType === 'everyone'
+            ? ProjectSubmitStrategy.EVERYONE
+            : ProjectSubmitStrategy.RESTRICTED
+          : undefined;
+
+        // Prepare approval strategy JSON
+        const approvalStrategy = input.validationStrategy
+          ? {
+              strategy: input.validationStrategy,
+              periodDays: input.validationPeriodDays || 0,
+            }
+          : undefined;
+
+        // Prepare links JSON
+        const links = input.otherLinks
+          ? {
+              otherLinks: input.otherLinks,
+            }
+          : undefined;
+
+        // Update project in transaction
+        const result = await db.$transaction(async (tx) => {
+          // Update the project
+          const project = await tx.project.update({
+            where: { id: input.id },
+            data: {
+              key: projectKey,
+              name: input.projectName,
+              description: input.description,
+              logo: input.logo,
+              tokenSymbol: input.tokenName,
+              ...(validateType && { validateType }),
+              ...(approvalStrategy && { approvalStrategy }),
+              ...(submitStrategy && { submitStrategy }),
+              ownerId,
+              defaultHourRate: input.defaultHourlyPay || null,
+              ...(links && { links }),
+              updatedAt: new Date(),
+            },
+          });
+
+          // Update members if provided
+          if (input.members && input.members.length > 0) {
+            // Soft delete existing members
+            await tx.projectMember.updateMany({
+              where: {
+                projectId: input.id,
+                deletedAt: null,
+              },
+              data: {
+                deletedAt: new Date(),
+              },
+            });
+
+            // Add updated members
+            for (const member of input.members) {
+              const memberUser = await findOrCreateUser(member.address);
+
+              // Build roles array
+              const roles: MemberRole[] = [];
+              if (member.isAdmin) roles.push(MemberRole.ADMIN);
+              if (member.isValidator) roles.push(MemberRole.VALIDATOR);
+              if (member.isContributor) roles.push(MemberRole.CONTRIBUTOR);
+
+              // If no roles specified, default to CONTRIBUTOR
+              if (roles.length === 0) {
+                roles.push(MemberRole.CONTRIBUTOR);
+              }
+
+              await tx.projectMember.create({
+                data: {
+                  userId: memberUser.id,
+                  projectId: input.id,
+                  role: roles,
+                },
+              });
+            }
+
+            // Ensure project owner is still a member with all roles
+            const ownerInMembers = input.members?.some(
+              (member: any) =>
+                member.address.toLowerCase() === input.projectOwner?.toLowerCase(),
+            );
+
+            if (!ownerInMembers && input.projectOwner) {
+              await tx.projectMember.create({
+                data: {
+                  userId: ownerId,
+                  projectId: input.id,
+                  role: [
+                    MemberRole.ADMIN,
+                    MemberRole.VALIDATOR,
+                    MemberRole.CONTRIBUTOR,
+                  ],
+                },
+              });
+            }
+          }
+
+          return project;
+        });
+
+        return {
+          success: true,
+          project: {
+            id: result.id,
+            key: result.key,
+            name: result.name,
+            description: result.description,
+            logo: result.logo,
+            tokenSymbol: result.tokenSymbol,
+          },
+          message: 'Project updated successfully!',
+        };
+      } catch (error) {
+        console.error('Error updating project:', error);
+
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update project. Please try again.',
         });
       }
     }),

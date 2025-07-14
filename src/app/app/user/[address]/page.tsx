@@ -75,104 +75,139 @@ const mockActiveProjects = [
 // Mock contributions data for My Contributions section
 const mockUserContributions = [
   {
-    id: 1,
-    contributor: {
-      name: 'Bruce Xu',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'voting' as const,
+    id: '1',
     content:
       'I reviewed the Fairsharing wireframe and made changes to the design.',
     hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: {
-      support: 8,
-      oppose: 2,
-      abstain: 1,
-    },
-    isOwn: true,
+    tags: ['DevWG'],
+    startAt: new Date('2025-03-29'),
+    endAt: null,
+    status: 'VALIDATING',
+    createdAt: new Date('2025-03-29'),
+    updatedAt: new Date('2025-03-29'),
+    contributors: [
+      {
+        id: 'contrib-1',
+        hours: 2,
+        points: 20,
+        contributor: {
+          id: 'user-1',
+          walletAddress: '0x123...',
+          ensName: null,
+          name: 'Bruce Xu',
+          avatar: '/homepage/step2-icon.png',
+        },
+      },
+    ],
+    votes: [],
   },
   {
-    id: 2,
-    contributor: {
-      name: 'Bruce Xu',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'pass' as const,
+    id: '2',
     content:
       'AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation. Space talk and mentoring session.',
     hours: 5.5,
-    date: '2025.03.28',
-    hashtag: 'AIHack',
-    lxp: 55,
-    votes: {
-      support: 15,
-      oppose: 3,
-      abstain: 2,
-    },
-    isOwn: true,
+    tags: ['AIHack'],
+    startAt: new Date('2025-03-28'),
+    endAt: null,
+    status: 'PASSED',
+    createdAt: new Date('2025-03-28'),
+    updatedAt: new Date('2025-03-28'),
+    contributors: [
+      {
+        id: 'contrib-2',
+        hours: 5.5,
+        points: 55,
+        contributor: {
+          id: 'user-1',
+          walletAddress: '0x123...',
+          ensName: null,
+          name: 'Bruce Xu',
+          avatar: '/homepage/step2-icon.png',
+        },
+      },
+    ],
+    votes: [],
   },
   {
-    id: 3,
-    contributor: {
-      name: 'Bruce Xu',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'pass' as const,
+    id: '3',
     content:
       'Developed the user profile page and implemented tooltip functionality for project visualization.',
     hours: 8,
-    date: '2025.03.27',
-    hashtag: 'DevWG',
-    lxp: 80,
-    votes: {
-      support: 12,
-      oppose: 1,
-      abstain: 0,
-    },
-    isOwn: true,
+    tags: ['DevWG'],
+    startAt: new Date('2025-03-27'),
+    endAt: null,
+    status: 'PASSED',
+    createdAt: new Date('2025-03-27'),
+    updatedAt: new Date('2025-03-27'),
+    contributors: [
+      {
+        id: 'contrib-3',
+        hours: 8,
+        points: 80,
+        contributor: {
+          id: 'user-1',
+          walletAddress: '0x123...',
+          ensName: null,
+          name: 'Bruce Xu',
+          avatar: '/homepage/step2-icon.png',
+        },
+      },
+    ],
+    votes: [],
   },
   {
-    id: 4,
-    contributor: {
-      name: 'Bruce Xu',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'fail' as const,
+    id: '4',
     content:
       'Created comprehensive tutorial content for smart contract development.',
     hours: 6,
-    date: '2025.03.26',
-    hashtag: 'Education',
-    lxp: 60,
-    votes: {
-      support: 4,
-      oppose: 8,
-      abstain: 3,
-    },
-    isOwn: true,
+    tags: ['Education'],
+    startAt: new Date('2025-03-26'),
+    endAt: null,
+    status: 'FAILED',
+    createdAt: new Date('2025-03-26'),
+    updatedAt: new Date('2025-03-26'),
+    contributors: [
+      {
+        id: 'contrib-4',
+        hours: 6,
+        points: 60,
+        contributor: {
+          id: 'user-1',
+          walletAddress: '0x123...',
+          ensName: null,
+          name: 'Bruce Xu',
+          avatar: '/homepage/step2-icon.png',
+        },
+      },
+    ],
+    votes: [],
   },
   {
-    id: 5,
-    contributor: {
-      name: 'Bruce Xu',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'voting' as const,
+    id: '5',
     content:
       'Code review and security audit for the new yield farming feature.',
     hours: 4,
-    date: '2025.03.25',
-    hashtag: 'Security',
-    lxp: 40,
-    votes: {
-      support: 6,
-      oppose: 2,
-      abstain: 1,
-    },
-    isOwn: true,
+    tags: ['Security'],
+    startAt: new Date('2025-03-25'),
+    endAt: null,
+    status: 'VALIDATING',
+    createdAt: new Date('2025-03-25'),
+    updatedAt: new Date('2025-03-25'),
+    contributors: [
+      {
+        id: 'contrib-5',
+        hours: 4,
+        points: 40,
+        contributor: {
+          id: 'user-1',
+          walletAddress: '0x123...',
+          ensName: null,
+          name: 'Bruce Xu',
+          avatar: '/homepage/step2-icon.png',
+        },
+      },
+    ],
+    votes: [],
   },
 ];
 
@@ -242,11 +277,11 @@ export default function UserPage() {
   const filteredContributions = mockUserContributions.filter((contribution) => {
     if (activeContributionTab === 'all') return true;
     if (activeContributionTab === 'validating')
-      return contribution.status === 'voting';
+      return contribution.status === 'VALIDATING';
     if (activeContributionTab === 'on-chain')
-      return contribution.status === 'pass' || contribution.status === 'fail';
+      return contribution.status === 'PASSED' || contribution.status === 'FAILED';
     if (activeContributionTab === 'failed')
-      return contribution.status === 'fail';
+      return contribution.status === 'FAILED';
     return true;
   });
 
@@ -509,6 +544,7 @@ export default function UserPage() {
                       <ContributionCard
                         key={contribution.id}
                         contribution={contribution}
+                        projectId="sample-project"
                       />
                     ))}
                   </SimpleGrid>

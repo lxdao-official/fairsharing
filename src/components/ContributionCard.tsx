@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Box,
   Stack,
@@ -8,6 +10,7 @@ import {
   ActionIcon,
   Modal,
   Alert,
+  Loader,
 } from '@mantine/core';
 import {
   IconEdit,
@@ -19,51 +22,105 @@ import {
   IconMinus,
   IconAlertCircle,
 } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ContributionForm } from './ContributionForm';
+import { trpc } from '@/utils/trpc';
+import { useUser } from '@/hooks/useAuth';
 
-interface Contribution {
-  id: number;
-  contributor: {
-    name: string;
-    avatar: string;
-  };
-  status: 'voting' | 'pass' | 'fail';
+interface ContributionData {
+  id: string;
   content: string;
-  hours: number;
-  date: string;
-  hashtag: string;
-  lxp: number;
-  votes: {
-    support: number;
-    oppose: number;
-    abstain: number;
-  };
-  isOwn: boolean;
+  hours?: number | null;
+  tags: string[];
+  startAt?: Date | null;
+  endAt?: Date | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  contributors: Array<{
+    id: string;
+    hours?: number | null;
+    points?: number | null;
+    contributor: {
+      id: string;
+      walletAddress: string;
+      ensName?: string | null;
+      name?: string | null;
+      avatar?: string | null;
+    };
+  }>;
+  votes: Array<{
+    id: string;
+    type: string;
+    voterId: string;
+  }>;
 }
 
 interface ContributionCardProps {
-  contribution: Contribution;
+  contribution: ContributionData;
+  projectId: string;
 }
 
-export function ContributionCard({ contribution }: ContributionCardProps) {
-  // Simulate user vote based on contribution status for demo
-  const initialVote =
-    contribution.status === 'pass'
-      ? 'support'
-      : contribution.status === 'fail'
-      ? 'oppose'
-      : null;
-
-  const [userVote, setUserVote] = useState<
-    'support' | 'oppose' | 'abstain' | null
-  >(initialVote);
+export function ContributionCard({ contribution, projectId }: ContributionCardProps) {
   const [isContentHovered, setIsContentHovered] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  const getStatusBadge = (status: Contribution['status']) => {
+  const [voteLoading, setVoteLoading] = useState(false);
+  
+  const { user } = useUser();
+  const utils = trpc.useUtils();
+  
+  // Get votes data for this contribution
+  const { data: votesData } = trpc.vote.get.useQuery({
+    contributionId: contribution.id,
+  });
+  
+  // Get current user's vote
+  const userVote = votesData?.votes.find(vote => vote.voterId === user?.id);
+  
+  // Vote counts
+  const voteCounts = votesData?.counts || { PASS: 0, FAIL: 0, SKIP: 0 };
+  
+  // Vote mutation
+  const createVote = trpc.vote.create.useMutation({
+    onSuccess: () => {
+      utils.vote.get.invalidate({ contributionId: contribution.id });
+    },
+    onSettled: () => {
+      setVoteLoading(false);
+    },
+  });
+  
+  // Delete vote mutation
+  const deleteVote = trpc.vote.delete.useMutation({
+    onSuccess: () => {
+      utils.vote.get.invalidate({ contributionId: contribution.id });
+    },
+    onSettled: () => {
+      setVoteLoading(false);
+    },
+  });
+  
+  // Check if current user is a contributor
+  const isOwnContribution = useMemo(() => {
+    return user ? contribution.contributors.some(c => c.contributor.id === user.id) : false;
+  }, [contribution.contributors, user]);
+  
+  // Get primary contributor (first one)
+  const primaryContributor = contribution.contributors[0]?.contributor;
+  
+  // Format date
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/\//g, '.');
+  };
+  
+  // Get status badge
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'voting':
+      case 'VALIDATING':
         return (
           <Badge
             size="sm"
@@ -76,7 +133,7 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             Voting
           </Badge>
         );
-      case 'pass':
+      case 'PASSED':
         return (
           <Badge
             size="sm"
@@ -89,7 +146,7 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             Pass
           </Badge>
         );
-      case 'fail':
+      case 'FAILED':
         return (
           <Badge
             size="sm"
@@ -102,11 +159,27 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             Fail
           </Badge>
         );
+      case 'ON_CHAIN':
+        return (
+          <Badge
+            size="sm"
+            style={{
+              backgroundColor: '#E0E7FF',
+              color: '#3730A3',
+              border: 'none',
+            }}
+          >
+            On-Chain
+          </Badge>
+        );
+      default:
+        return null;
     }
   };
-
+  
+  // Get vote button style
   const getVoteItemStyle = (
-    voteType: 'support' | 'oppose' | 'abstain',
+    voteType: 'PASS' | 'FAIL' | 'SKIP',
     isActive: boolean,
   ) => {
     const baseStyle = {
@@ -119,9 +192,7 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
       transition: 'all 0.2s ease',
     };
 
-    // For pass/fail status, show selected state but disabled
-    const isDisabled =
-      contribution.status === 'pass' || contribution.status === 'fail';
+    const isDisabled = contribution.status !== 'VALIDATING' || !user || isOwnContribution;
 
     if (isDisabled && !isActive) {
       return {
@@ -133,21 +204,21 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
     }
 
     switch (voteType) {
-      case 'support':
+      case 'PASS':
         return {
           ...baseStyle,
           backgroundColor: isActive ? '#10B981' : 'transparent',
           color: isActive ? 'white' : '#10B981',
           cursor: isDisabled ? 'not-allowed' : 'pointer',
         };
-      case 'oppose':
+      case 'FAIL':
         return {
           ...baseStyle,
           backgroundColor: isActive ? '#EF4444' : 'transparent',
           color: isActive ? 'white' : '#EF4444',
           cursor: isDisabled ? 'not-allowed' : 'pointer',
         };
-      case 'abstain':
+      case 'SKIP':
         return {
           ...baseStyle,
           backgroundColor: isActive ? '#6B7280' : 'transparent',
@@ -157,11 +228,22 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
     }
   };
 
-  const handleVote = (voteType: 'support' | 'oppose' | 'abstain') => {
-    const isDisabled =
-      contribution.status === 'pass' || contribution.status === 'fail';
-    if (isDisabled) return;
-    setUserVote(userVote === voteType ? null : voteType);
+  // Handle vote
+  const handleVote = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
+    if (contribution.status !== 'VALIDATING' || !user || isOwnContribution || voteLoading) return;
+    
+    setVoteLoading(true);
+    
+    // If user already voted with same type, remove vote
+    if (userVote?.type === voteType) {
+      deleteVote.mutate({ contributionId: contribution.id });
+    } else {
+      // Create or update vote
+      createVote.mutate({
+        contributionId: contribution.id,
+        type: voteType,
+      });
+    }
   };
 
   return (
@@ -174,15 +256,21 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
       }}
     >
       <Group align="flex-start" display="flex" style={{ flexWrap: 'nowrap' }}>
-        <Avatar src={contribution.contributor.avatar} size={40} radius="50%" />
-        <Stack gap={8}>
+        <Avatar 
+          src={primaryContributor?.avatar || '/homepage/step2-icon.png'} 
+          size={40} 
+          radius="50%" 
+        />
+        <Stack gap={8} style={{ flex: 1 }}>
           <Group justify="space-between">
             <Text fw={600} size="md">
-              {contribution.contributor.name}
+              {primaryContributor?.name || 
+               primaryContributor?.ensName || 
+               `${primaryContributor?.walletAddress.slice(0, 6)}...${primaryContributor?.walletAddress.slice(-4)}`}
             </Text>
             <Group align="center">
               {getStatusBadge(contribution.status)}
-              {contribution.isOwn && (
+              {isOwnContribution && (
                 <ActionIcon
                   variant="subtle"
                   color="gray"
@@ -194,12 +282,12 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
               )}
             </Group>
           </Group>
+          
           <Box>
             <Text
               size="md"
               style={{
-                cursor:
-                  contribution.content.length > 100 ? 'pointer' : 'default',
+                cursor: contribution.content.length > 100 ? 'pointer' : 'default',
                 lineHeight: 1.5,
                 transition: 'all 0.2s ease',
               }}
@@ -214,26 +302,32 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
               {contribution.content}
             </Text>
           </Box>
+          
           <Group>
-            <Group gap={4} align="center">
-              <IconClock size={16} color="#6B7280" />
-              <Text size="sm" c="gray.6">
-                {contribution.hours} Hours
-              </Text>
-            </Group>
+            {contribution.hours && (
+              <Group gap={4} align="center">
+                <IconClock size={16} color="#6B7280" />
+                <Text size="sm" c="gray.6">
+                  {contribution.hours} Hours
+                </Text>
+              </Group>
+            )}
             <Group gap={4} align="center">
               <IconCalendar size={16} color="#6B7280" />
               <Text size="sm" c="gray.6">
-                {contribution.date}
+                {formatDate(contribution.createdAt)}
               </Text>
             </Group>
-            <Group gap={4} align="center">
-              <IconHash size={16} color="#6B7280" />
-              <Text size="sm" c="gray.6">
-                {contribution.hashtag}
-              </Text>
-            </Group>
+            {contribution.tags.length > 0 && (
+              <Group gap={4} align="center">
+                <IconHash size={16} color="#6B7280" />
+                <Text size="sm" c="gray.6">
+                  {contribution.tags[0]}
+                </Text>
+              </Group>
+            )}
           </Group>
+          
           <Group
             justify="space-between"
             align="center"
@@ -241,49 +335,45 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             style={{ borderTop: '1px solid #DEE2E6' }}
           >
             <Group gap={16} align="center">
-              <Text
-                fw={600}
-                size="sm"
-                c={
-                  contribution.status === 'pass'
-                    ? '#12B886'
-                    : contribution.status === 'fail'
-                    ? '#9CA3AF'
-                    : 'inherit'
-                }
-              >
-                LXP {contribution.lxp}
+              <Text fw={600} size="sm">
+                {contribution.contributors.reduce((sum, c) => sum + (c.points || 0), 0)} LXP
               </Text>
             </Group>
 
             <Group gap={12} align="center">
-              <Box
-                style={getVoteItemStyle('support', userVote === 'support')}
-                onClick={() => handleVote('support')}
-              >
-                <IconCheck size={14} />
-                <Text size="sm" fw={500}>
-                  {contribution.votes.support}
-                </Text>
-              </Box>
-              <Box
-                style={getVoteItemStyle('oppose', userVote === 'oppose')}
-                onClick={() => handleVote('oppose')}
-              >
-                <IconX size={14} />
-                <Text size="sm" fw={500}>
-                  {contribution.votes.oppose}
-                </Text>
-              </Box>
-              <Box
-                style={getVoteItemStyle('abstain', userVote === 'abstain')}
-                onClick={() => handleVote('abstain')}
-              >
-                <IconMinus size={14} />
-                <Text size="sm" fw={500}>
-                  {contribution.votes.abstain}
-                </Text>
-              </Box>
+              {voteLoading ? (
+                <Loader size="sm" />
+              ) : (
+                <>
+                  <Box
+                    style={getVoteItemStyle('PASS', userVote?.type === 'PASS')}
+                    onClick={() => handleVote('PASS')}
+                  >
+                    <IconCheck size={14} />
+                    <Text size="sm" fw={500}>
+                      {voteCounts.PASS}
+                    </Text>
+                  </Box>
+                  <Box
+                    style={getVoteItemStyle('FAIL', userVote?.type === 'FAIL')}
+                    onClick={() => handleVote('FAIL')}
+                  >
+                    <IconX size={14} />
+                    <Text size="sm" fw={500}>
+                      {voteCounts.FAIL}
+                    </Text>
+                  </Box>
+                  <Box
+                    style={getVoteItemStyle('SKIP', userVote?.type === 'SKIP')}
+                    onClick={() => handleVote('SKIP')}
+                  >
+                    <IconMinus size={14} />
+                    <Text size="sm" fw={500}>
+                      {voteCounts.SKIP}
+                    </Text>
+                  </Box>
+                </>
+              )}
             </Group>
           </Group>
         </Stack>
@@ -304,27 +394,27 @@ export function ContributionCard({ contribution }: ContributionCardProps) {
             color="yellow"
             variant="light"
           >
-            Submitting changes will restart the vote and erase all previous
-            votes.
+            Submitting changes will restart the vote and erase all previous votes.
           </Alert>
 
           <ContributionForm
+            projectId={projectId}
             isEditMode={true}
             initialData={{
+              id: contribution.id,
               contribution: contribution.content,
-              hours: contribution.hours,
-              contributor: contribution.contributor.name,
-              date: [new Date(contribution.date.replace(/\./g, '-')), null] as [
-                Date | null,
-                Date | null,
-              ],
-              hashtag: contribution.hashtag,
-              reward: contribution.lxp,
+              hours: contribution.hours || 0,
+              contributor: primaryContributor?.name || '',
+              date: [
+                contribution.startAt ? new Date(contribution.startAt) : new Date(contribution.createdAt),
+                contribution.endAt ? new Date(contribution.endAt) : null,
+              ] as [Date | null, Date | null],
+              hashtag: contribution.tags[0] || '',
+              reward: contribution.contributors.reduce((sum, c) => sum + (c.points || 0), 0),
             }}
-            onSubmit={(data) => {
-              console.log('Updating contribution:', data);
+            onSubmit={() => {
               setIsEditModalOpen(false);
-              // Here you would implement the actual update logic
+              utils.contribution.list.invalidate({ projectId });
             }}
             onCancel={() => setIsEditModalOpen(false)}
           />

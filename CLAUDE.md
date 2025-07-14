@@ -14,6 +14,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run db:generate` - Generate Prisma client
 - `npm run db:push` - Push schema changes to database
 - `npm run db:studio` - Open Prisma Studio
+- `npm run db:seed` - Run database seeding with sample data
+- `npm run db:seed-simple` - Run simple database seeding
+- `npm run db:reset` - Reset database and reseed with sample data
 
 ### Testing & Quality
 Always run `npm run lint` after making changes to ensure code quality.
@@ -44,7 +47,7 @@ Always run `npm run lint` after making changes to ensure code quality.
 - Project membership with array-based roles (`MemberRole[]`)
 
 #### API Structure
-- tRPC routers organized by domain: user, project, upload
+- tRPC routers organized by domain: user, project, upload, contribution, vote
 - All procedures use Zod validation schemas
 - Consistent error handling with TRPCError
 - Type-safe client-server communication

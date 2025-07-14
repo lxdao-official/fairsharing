@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Stack,
   Title,
@@ -7,162 +9,99 @@ import {
   Pagination,
   Box,
   SimpleGrid,
+  Text,
+  Alert,
 } from '@mantine/core';
-import { IconChevronDown } from '@tabler/icons-react';
-import { useState } from 'react';
+import { IconChevronDown, IconInfoCircle } from '@tabler/icons-react';
+import { useState, useEffect, useMemo } from 'react';
 import { ContributionCard } from './ContributionCard';
+import { LoadingSpinner } from './LoadingSpinner';
+import { trpc } from '@/utils/trpc';
+// import { useDebounce } from '@/hooks/useDebounce';
 
-// Mock data for contributions
-const mockContributions = [
-  {
-    id: 1,
-    contributor: {
-      name: 'Char',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'voting' as const,
-    content:
-      'I reviewed the Fairsharing wireframe and made changes to the design.',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: true,
-  },
-  {
-    id: 2,
-    contributor: {
-      name: 'Markus',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'pass' as const,
-    content:
-      'I reviewed the Fairsharing wireframe and made changes to the design.',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: false,
-  },
-  {
-    id: 3,
-    contributor: {
-      name: 'Char',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'voting' as const,
-    content:
-      '1. AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation；Space talk ~ 5.5h 1. AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation；Space talk ~ 5.5h 1. AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation；Space talk ~ 5.5h 1. AI Hackathon 2.0: Idea day talk, Organisation Jury, tally form creation；Space talk ~ 5.5h ',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: true,
-  },
-  {
-    id: 4,
-    contributor: {
-      name: 'Markus',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'pass' as const,
-    content:
-      '1. I reviewed the Fairsharing wireframe and made changes to the design. ...',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: false,
-  },
-  {
-    id: 5,
-    contributor: {
-      name: 'Keylen',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'fail' as const,
-    content:
-      'I reviewed the Fairsharing wireframe and made changes to the design.',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: false,
-  },
-  {
-    id: 6,
-    contributor: {
-      name: 'Keylen',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'fail' as const,
-    content:
-      'I reviewed the Fairsharing wireframe and made changes to the design.',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: false,
-  },
-  {
-    id: 7,
-    contributor: {
-      name: 'Char',
-      avatar: '/homepage/step2-icon.png',
-    },
-    status: 'voting' as const,
-    content:
-      'I reviewed the Fairsharing wireframe and made changes to the design for two rounds.',
-    hours: 2,
-    date: '2025.03.29',
-    hashtag: 'DevWG',
-    lxp: 20,
-    votes: { support: 10, oppose: 10, abstain: 10 },
-    isOwn: true,
-  },
-];
+interface ContributionsSectionProps {
+  projectId: string;
+}
 
-export function ContributionsSection() {
+export function ContributionsSection({ projectId }: ContributionsSectionProps) {
   const [activeTab, setActiveTab] = useState('all');
-  const [selectedContributor, setSelectedContributor] = useState<string | null>(
-    null,
-  );
+  const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  // Filter contributions based on active tab and selected contributor
-  const filteredContributions = mockContributions.filter((contribution) => {
-    const statusFilter =
-      activeTab === 'all' ||
-      (activeTab === 'validating' && contribution.status === 'voting') ||
-      (activeTab === 'on-chain' &&
-        (contribution.status === 'pass' || contribution.status === 'fail'));
+  // Map status for API
+  const statusMap: Record<string, string | undefined> = {
+    all: undefined,
+    validating: 'VALIDATING',
+    'on-chain': undefined, // We'll filter this in the frontend for now
+  };
 
-    const contributorFilter =
-      !selectedContributor ||
-      contribution.contributor.name === selectedContributor;
-
-    return statusFilter && contributorFilter;
+  // Fetch contributions
+  const {
+    data: contributionsData,
+    isLoading,
+    error,
+    // refetch,
+  } = trpc.contribution.list.useQuery({
+    projectId,
+    status: statusMap[activeTab] as any,
+    contributorId: selectedContributor || undefined,
+    page: currentPage,
+    limit: itemsPerPage,
   });
 
-  const totalContributions = 1000;
-  const totalPages = Math.ceil(filteredContributions.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedContributions = filteredContributions.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  // Filter for on-chain tab (PASSED/FAILED)
+  const filteredContributions = useMemo(() => {
+    if (!contributionsData?.contributions) return [];
+    
+    if (activeTab === 'on-chain') {
+      return contributionsData.contributions.filter(
+        c => c.status === 'PASSED' || c.status === 'FAILED'
+      );
+    }
+    
+    return contributionsData.contributions;
+  }, [contributionsData?.contributions, activeTab]);
 
   // Get unique contributors for the select dropdown
-  const contributors = Array.from(
-    new Set(mockContributions.map((c) => c.contributor.name)),
-  );
+  const contributors = useMemo(() => {
+    if (!contributionsData?.contributions) return [];
+    
+    const uniqueContributors = new Map();
+    contributionsData.contributions.forEach(contribution => {
+      contribution.contributors.forEach(contributor => {
+        const user = contributor.contributor;
+        if (!uniqueContributors.has(user.id)) {
+          uniqueContributors.set(user.id, {
+            value: user.id,
+            label: user.name || user.ensName || `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`,
+          });
+        }
+      });
+    });
+    
+    return Array.from(uniqueContributors.values());
+  }, [contributionsData?.contributions]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, selectedContributor]);
+
+  if (isLoading) {
+    return <LoadingSpinner text="Loading contributions..." />;
+  }
+
+  if (error) {
+    return (
+      <Alert color="red" icon={<IconInfoCircle size={16} />}>
+        Failed to load contributions: {error.message}
+      </Alert>
+    );
+  }
+
+  const totalContributions = contributionsData?.pagination.total || 0;
+  const pagination = contributionsData?.pagination;
 
   return (
     <Stack gap={18}>
@@ -233,25 +172,54 @@ export function ContributionsSection() {
       </Group>
 
       {/* Contribution Cards */}
-      <Box style={{ backgroundColor: '#F9F9F9', borderRadius: 24, padding: 8 }}>
-        <SimpleGrid cols={2} spacing={8}>
-          {paginatedContributions.map((contribution) => (
-            <ContributionCard
-              key={contribution.id}
-              contribution={contribution}
-            />
-          ))}
-        </SimpleGrid>
+      {filteredContributions.length === 0 ? (
+        <Box 
+          style={{ 
+            backgroundColor: '#F9F9F9', 
+            borderRadius: 24, 
+            padding: 40,
+            textAlign: 'center'
+          }}
+        >
+          <Text size="lg" c="gray.6">
+            No contributions found
+          </Text>
+          <Text size="sm" c="gray.5" mt={8}>
+            {activeTab === 'all' 
+              ? 'Be the first to contribute to this project!' 
+              : `No contributions with ${activeTab} status found.`}
+          </Text>
+        </Box>
+      ) : (
+        <Box style={{ backgroundColor: '#F9F9F9', borderRadius: 24, padding: 8 }}>
+          <SimpleGrid cols={2} spacing={8}>
+            {filteredContributions.map((contribution) => (
+              <ContributionCard
+                key={contribution.id}
+                contribution={{
+                  ...contribution,
+                  createdAt: new Date(contribution.createdAt),
+                  updatedAt: new Date(contribution.updatedAt),
+                  startAt: contribution.startAt ? new Date(contribution.startAt) : null,
+                  endAt: contribution.endAt ? new Date(contribution.endAt) : null,
+                }}
+                projectId={projectId}
+              />
+            ))}
+          </SimpleGrid>
 
-        <Group mt={16}>
-          <Pagination
-            value={currentPage}
-            onChange={setCurrentPage}
-            total={totalPages}
-            size="sm"
-          />
-        </Group>
-      </Box>
+          {pagination && pagination.totalPages > 1 && (
+            <Group justify="center" mt={16}>
+              <Pagination
+                value={currentPage}
+                onChange={setCurrentPage}
+                total={pagination.totalPages}
+                size="sm"
+              />
+            </Group>
+          )}
+        </Box>
+      )}
     </Stack>
   );
 }

@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Box,
   Textarea,
@@ -6,14 +8,20 @@ import {
   Text,
   Stack,
   NumberInput,
+  Alert,
+  Loader,
 } from '@mantine/core';
 import { HoursInput } from '@/components/HoursInput';
 import { ContributorInput } from '@/components/ContributorInput';
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { HashtagInput } from '@/components/HashtagInput';
 import { useState } from 'react';
+import { trpc } from '@/utils/trpc';
+import { IconCheck, IconX } from '@tabler/icons-react';
+import { useUser } from '@/hooks/useAuth';
 
 interface ContributionFormData {
+  id?: string;
   contribution: string;
   hours: number;
   contributor: string;
@@ -23,6 +31,7 @@ interface ContributionFormData {
 }
 
 interface ContributionFormProps {
+  projectId?: string;
   isEditMode?: boolean;
   initialData?: Partial<ContributionFormData>;
   onSubmit?: (data: ContributionFormData) => void;
@@ -30,6 +39,7 @@ interface ContributionFormProps {
 }
 
 export function ContributionForm({
+  projectId,
   isEditMode = false,
   initialData = {},
   onSubmit,
@@ -50,20 +60,104 @@ export function ContributionForm({
     initialData.reward || 0,
   );
 
-  const handleSubmit = () => {
-    const formData: ContributionFormData = {
-      contribution,
-      hours: typeof hours === 'number' ? hours : Number(hours) || 0,
-      contributor,
-      date,
-      hashtag,
-      reward: typeof reward === 'number' ? reward : Number(reward) || 0,
-    };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
+  const { user } = useUser();
+  const utils = trpc.useUtils();
+  
+  const createContribution = trpc.contribution.create.useMutation({
+    onSuccess: () => {
+      setSuccess('Contribution submitted successfully!');
+      setError(null);
+      // Reset form
+      setContribution('');
+      setHours('');
+      setDate([new Date(), null]);
+      setHashtag('');
+      setReward(0);
+      // Refresh contributions list
+      if (projectId) {
+        utils.contribution.list.invalidate({ projectId });
+      }
+    },
+    onError: (error) => {
+      setError(error.message);
+      setSuccess(null);
+    },
+    onSettled: () => {
+      setLoading(false);
+    },
+  });
+  
+  const updateContribution = trpc.contribution.update.useMutation({
+    onSuccess: () => {
+      setSuccess('Contribution updated successfully!');
+      setError(null);
+      if (onSubmit) {
+        onSubmit({
+          contribution,
+          hours: typeof hours === 'number' ? hours : Number(hours) || 0,
+          contributor,
+          date,
+          hashtag,
+          reward: typeof reward === 'number' ? reward : Number(reward) || 0,
+        });
+      }
+    },
+    onError: (error) => {
+      setError(error.message);
+      setSuccess(null);
+    },
+    onSettled: () => {
+      setLoading(false);
+    },
+  });
 
-    if (onSubmit) {
-      onSubmit(formData);
-    } else {
-      console.log('Submitting contribution:', formData);
+  const handleSubmit = () => {
+    if (!user) {
+      setError('You must be logged in to submit a contribution');
+      return;
+    }
+    
+    if (!projectId && !isEditMode) {
+      setError('Project ID is required');
+      return;
+    }
+    
+    if (!contribution.trim()) {
+      setError('Contribution content is required');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    
+    const formData = {
+      content: contribution,
+      hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
+      tags: hashtag ? [hashtag] : [],
+      startAt: date[0] || undefined,
+      endAt: date[1] || undefined,
+      contributors: [{
+        userId: user.id,
+        hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
+        points: typeof reward === 'number' ? reward : Number(reward) || undefined,
+      }],
+    };
+    
+    if (isEditMode && initialData?.id) {
+      updateContribution.mutate({
+        id: initialData.id,
+        ...formData,
+      });
+    } else if (projectId) {
+      createContribution.mutate({
+        projectId,
+        ...formData,
+      });
     }
   };
 
@@ -131,6 +225,19 @@ export function ContributionForm({
             />
           </Box>
         </Group>
+        
+        {/* Error/Success Messages */}
+        {error && (
+          <Alert color="red" icon={<IconX size={16} />} variant="light">
+            {error}
+          </Alert>
+        )}
+        
+        {success && (
+          <Alert color="green" icon={<IconCheck size={16} />} variant="light">
+            {success}
+          </Alert>
+        )}
 
         {/* Reward Section */}
         <Group
@@ -182,6 +289,8 @@ export function ContributionForm({
                 onClick={handleSubmit}
                 size="md"
                 radius="md"
+                loading={loading}
+                disabled={loading || !user}
                 style={{
                   backgroundColor: '#FFDD44',
                   color: '#000',
@@ -193,7 +302,11 @@ export function ContributionForm({
                   paddingInline: '32px',
                 }}
               >
-                Submit
+                {loading ? (
+                  <Loader size="sm" />
+                ) : (
+                  isEditMode ? 'Update' : 'Submit'
+                )}
               </Button>
             </Group>
           ) : (
@@ -201,6 +314,8 @@ export function ContributionForm({
               onClick={handleSubmit}
               size="md"
               radius="md"
+              loading={loading}
+              disabled={loading || !user || !projectId}
               style={{
                 backgroundColor: '#FFDD44',
                 color: '#000',
@@ -212,7 +327,11 @@ export function ContributionForm({
                 paddingInline: '32px',
               }}
             >
-              Submit
+              {loading ? (
+                <Loader size="sm" />
+              ) : (
+                'Submit'
+              )}
             </Button>
           )}
         </Group>

@@ -37,10 +37,8 @@ export function ProjectSidebar({ currentProject }: ProjectSidebarProps) {
         flexDirection: 'column',
         alignItems: 'center',
         padding: '12px 0',
-        minHeight: 'calc(100vh - 64px)',
-        position: 'sticky',
         top: 64,
-        alignSelf: 'flex-start',
+        alignItem: 'stretch',
       }}
     >
       {/* Home Button */}

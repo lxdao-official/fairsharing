@@ -351,15 +351,7 @@ export default function AppPage() {
                       onChange={setCurrentPage}
                       total={pagination.totalPages}
                       size="sm"
-                      styles={{
-                        control: {
-                          '&[data-active]': {
-                            backgroundColor: '#000',
-                            color: '#fff',
-                            border: '1px solid #000',
-                          },
-                        },
-                      }}
+                      color="dark"
                     />
                   </Group>
                 </Center>

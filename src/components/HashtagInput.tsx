@@ -75,7 +75,7 @@ export function HashtagInput({
             fontSize: 14,
             padding: '8px 12px',
             whiteSpace: 'nowrap',
-            '&[data-selected]': {
+            '&[dataSelected="true"]': {
               backgroundColor: '#F3F4F6',
               color: '#111827',
             },

@@ -108,9 +108,23 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
   // Get primary contributor (first one)
   const primaryContributor = contribution.contributors[0]?.contributor;
   
-  // Format date
-  const formatDate = (date: Date) => {
-    return new Date(date).toISOString().split('T')[0];
+  // Format date - show start/end dates if available, otherwise creation date
+  const formatDateRange = () => {
+    if (contribution.startAt) {
+      const startDate = new Date(contribution.startAt).toISOString().split('T')[0];
+      if (contribution.endAt) {
+        const endDate = new Date(contribution.endAt).toISOString().split('T')[0];
+        // If same day, show only one date
+        if (startDate === endDate) {
+          return startDate;
+        }
+        // Different days, show range
+        return `${startDate} - ${endDate}`;
+      }
+      return startDate;
+    }
+    // Fallback to creation date
+    return new Date(contribution.createdAt).toISOString().split('T')[0];
   };
   
   // Get status badge
@@ -311,7 +325,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
             <Group gap={4} align="center">
               <IconCalendar size={16} color="#6B7280" />
               <Text size="sm" c="gray.6">
-                {formatDate(contribution.createdAt)}
+                {formatDateRange()}
               </Text>
             </Group>
             {contribution.tags.length > 0 && (

@@ -6,7 +6,6 @@ import { db } from '@/lib/db';
 import {
   ContributionStatus,
   ProjectSubmitStrategy,
-  MemberRole,
 } from '@prisma/client';
 
 // Input validation schemas
@@ -366,9 +365,17 @@ export const contributionRouter = createTRPCRouter({
           });
         }
 
-        // Update contribution and reset votes in a transaction
+        // Create new version of contribution and preserve history
         const result = await db.$transaction(async (tx) => {
-          // Soft delete all existing votes (reset voting)
+          // Soft delete the old contribution (preserve history)
+          await tx.contribution.update({
+            where: { id: input.id },
+            data: {
+              deletedAt: new Date(),
+            },
+          });
+
+          // Soft delete all existing votes for the old contribution
           await tx.vote.updateMany({
             where: {
               contributionId: input.id,
@@ -379,7 +386,7 @@ export const contributionRouter = createTRPCRouter({
             },
           });
 
-          // Soft delete existing contributors
+          // Soft delete existing contributors for the old contribution
           await tx.contributionContributor.updateMany({
             where: {
               contributionId: input.id,
@@ -390,31 +397,30 @@ export const contributionRouter = createTRPCRouter({
             },
           });
 
-          // Update contribution
-          const updatedContribution = await tx.contribution.update({
-            where: { id: input.id },
+          // Create new contribution version
+          const newContribution = await tx.contribution.create({
             data: {
               content: input.content,
               hours: input.hours,
               tags: input.tags,
               startAt: input.startAt,
               endAt: input.endAt,
-              status: ContributionStatus.VALIDATING, // Reset to validating
-              updatedAt: new Date(),
+              status: ContributionStatus.VALIDATING,
+              projectId: existingContribution.projectId,
             },
           });
 
-          // Add new contributors
+          // Add contributors for the new contribution
           await tx.contributionContributor.createMany({
             data: input.contributors.map(contributor => ({
-              contributionId: input.id,
+              contributionId: newContribution.id,
               contributorId: contributor.userId,
               hours: contributor.hours,
               points: contributor.points,
             })),
           });
 
-          return updatedContribution;
+          return newContribution;
         });
 
         return {

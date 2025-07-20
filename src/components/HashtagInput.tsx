@@ -53,7 +53,8 @@ export function HashtagInput({
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
-            width: '12ch',
+            width: '100%',
+            minWidth: '12ch',
             '&:focus': {
               outline: 'none',
             },

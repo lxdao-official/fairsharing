@@ -10,7 +10,7 @@ export function HoursInput({ value, onChange }: HoursInputProps) {
   return (
     <Box
       style={{
-        width: 86,
+        width: '100%',
         height: 32,
         border: '1px solid #E5E7EB',
         borderRadius: 8,

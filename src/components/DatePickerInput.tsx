@@ -85,7 +85,8 @@ export function DatePickerInput({
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
-            width: '20ch',
+            width: '100%',
+            minWidth: '20ch',
             color:
               value &&
               value[0] &&
@@ -113,7 +114,7 @@ export function DatePickerInput({
           <div
             style={{
               position: 'absolute',
-              left: '36px', // Account for icon + margin
+              left: '34px', // Account for icon + margin
               top: '50%',
               transform: 'translateY(-50%)',
               fontSize: 14,

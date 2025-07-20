@@ -45,7 +45,8 @@ export function ContributorInput({
             fontSize: 14,
             fontWeight: 500,
             backgroundColor: 'transparent',
-            width: '8ch',
+            width: '100%',
+            minWidth: '8ch',
             '&:focus': {
               outline: 'none',
             },

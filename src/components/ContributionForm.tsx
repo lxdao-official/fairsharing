@@ -11,12 +11,14 @@ import {
   Alert,
   Loader,
   Tooltip,
+  SimpleGrid,
+  Container,
 } from '@mantine/core';
 import { HoursInput } from '@/components/HoursInput';
 import { ContributorInput } from '@/components/ContributorInput';
 import { DatePickerInput } from '@/components/DatePickerInput';
 import { HashtagInput } from '@/components/HashtagInput';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { trpc } from '@/utils/trpc';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import { useUser } from '@/hooks/useAuth';
@@ -62,6 +64,7 @@ export function ContributionForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const formRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
   const utils = trpc.useUtils();
 
@@ -114,10 +117,13 @@ export function ContributionForm({
   }, [projectData, user]);
 
   // Helper to get user ID from label
-  const getContributorId = (label: string) => {
-    const option = contributorOptions.find((opt) => opt.label === label);
-    return option ? option.value : label;
-  };
+  const getContributorId = useCallback(
+    (label: string) => {
+      const option = contributorOptions.find((opt) => opt.label === label);
+      return option ? option.value : label;
+    },
+    [contributorOptions],
+  );
 
   const [contributor, setContributor] = useState(initialData.contributor || '');
 
@@ -198,7 +204,8 @@ export function ContributionForm({
     },
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+
     if (!user) {
       setError('You must be logged in to submit a contribution');
       return;
@@ -245,10 +252,43 @@ export function ContributionForm({
         ...formData,
       });
     }
-  };
+  }, [
+    user,
+    projectId,
+    isEditMode,
+    contribution,
+    hours,
+    date,
+    hashtag,
+    reward,
+    contributor,
+    getContributorId,
+    initialData?.id,
+    updateContribution,
+    createContribution,
+  ]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        handleSubmit();
+      }
+    };
+
+    const formElement = formRef.current;
+    if (formElement) {
+      formElement.addEventListener('keydown', handleKeyDown);
+      return () => {
+        formElement.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [handleSubmit]);
 
   return (
     <Box
+      ref={formRef}
       style={{
         borderRadius: isEditMode ? '0px' : '16px',
         border: isEditMode ? 'none' : '1px solid #FFDD44',
@@ -256,6 +296,7 @@ export function ContributionForm({
         width: '100%',
         maxWidth: '100%',
       }}
+      tabIndex={-1}
     >
       <Stack gap={20}>
         {/* Main contribution */}
@@ -274,44 +315,50 @@ export function ContributionForm({
           }}
         />
 
-        {/* Form Fields Row */}
-        <Group gap={16}>
-          {/* Hours */}
-          <Box style={{ flex: '0 0 auto' }}>
-            <HoursInput
-              value={typeof hours === 'number' ? hours : undefined}
-              onChange={setHours}
-            />
-          </Box>
+        {/* Form Fields - Responsive Layout */}
+        <Container size="100%" p={0}>
+          <SimpleGrid
+            cols={{ base: 1, xs: 2, sm: 4 }}
+            spacing={{ base: 12, sm: 16 }}
+            verticalSpacing={{ base: 12, sm: 16 }}
+          >
+            {/* Hours */}
+            <Box style={{ minWidth: 0 }}>
+              <HoursInput
+                value={typeof hours === 'number' ? hours : undefined}
+                onChange={setHours}
+              />
+            </Box>
 
-          {/* Contributor */}
-          <Box style={{ width: 'auto', minWidth: 86 }}>
-            <ContributorInput
-              value={contributor}
-              onChange={setContributor}
-              placeholder="Contributor"
-              data={contributorOptions.map((option) => option.label)}
-            />
-          </Box>
+            {/* Contributor */}
+            <Box style={{ minWidth: 0 }}>
+              <ContributorInput
+                value={contributor}
+                onChange={setContributor}
+                placeholder="Contributor"
+                data={contributorOptions.map((option) => option.label)}
+              />
+            </Box>
 
-          {/* Date */}
-          <Box style={{ minWidth: 86 }}>
-            <DatePickerInput
-              value={date}
-              onChange={setDate}
-              placeholder="Select date"
-            />
-          </Box>
+            {/* Date */}
+            <Box style={{ minWidth: 0 }}>
+              <DatePickerInput
+                value={date}
+                onChange={setDate}
+                placeholder="Select date"
+              />
+            </Box>
 
-          {/* Hashtag */}
-          <Box style={{ minWidth: 86 }}>
-            <HashtagInput
-              value={hashtag}
-              onChange={setHashtag}
-              placeholder="Optional"
-            />
-          </Box>
-        </Group>
+            {/* Hashtag */}
+            <Box style={{ minWidth: 0 }}>
+              <HashtagInput
+                value={hashtag}
+                onChange={setHashtag}
+                placeholder="Optional"
+              />
+            </Box>
+          </SimpleGrid>
+        </Container>
 
         {/* Error/Success Messages */}
         {error && (

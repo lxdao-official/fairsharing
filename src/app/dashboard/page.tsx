@@ -72,7 +72,7 @@ export default function AppPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [tab, setTab] = useState<'my' | 'following' | 'all'>('all');
   const { isConnected } = useAccount();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Debounce search input
   const debouncedSearch = useDebounce(searchValue, 300);

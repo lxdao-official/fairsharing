@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink, loggerLink } from '@trpc/client';
 import { createTRPCReact } from '@trpc/react-query';
 import { useState } from 'react';
+import superjson from 'superjson';
 import { createConfig, WagmiProvider } from 'wagmi';
 import { mainnet, sepolia } from 'wagmi/chains';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
@@ -53,6 +54,7 @@ function TRPCInner({ children }: { children: React.ReactNode }) {
         }),
         httpBatchLink({
           url: '/api/trpc',
+          transformer: superjson,
           headers: () => {
             // This function is called on every request
             if (typeof window !== 'undefined') {

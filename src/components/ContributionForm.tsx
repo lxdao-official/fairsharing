@@ -222,8 +222,8 @@ export function ContributionForm({
       content: contribution,
       hours: typeof hours === 'number' ? hours : Number(hours) || undefined,
       tags: hashtag ? [hashtag] : [],
-      startAt: date[0] ? new Date(date[0]) : undefined,
-      endAt: date[1] ? new Date(date[1]) : undefined,
+      startAt: date[0] || undefined,
+      endAt: date[1] || undefined,
       contributors: [
         {
           userId: getContributorId(contributor) || user?.id || '',

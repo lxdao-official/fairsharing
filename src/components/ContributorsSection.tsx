@@ -12,6 +12,7 @@ import {
   Pagination,
   Box,
   ActionIcon,
+  Alert,
 } from '@mantine/core';
 import {
   IconSearch,
@@ -19,116 +20,120 @@ import {
   IconTable,
   IconChartPie,
   IconCopy,
+  IconInfoCircle,
 } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { PieChart } from '@mantine/charts';
-
-// Mock data for contributors
-const mockContributors = [
-  {
-    id: 1,
-    name: 'Bruce Xu',
-    avatar: '/homepage/step2-icon.png',
-    ethWallet: '0xse8...Ca79',
-    role: 'Project Manager',
-    percentage: 35.86,
-    pieSliceEarned: 240,
-    recentlyActive: 'Jul 6, 2023',
-  },
-  {
-    id: 2,
-    name: 'Alice Chen',
-    avatar: '/homepage/step2-icon.png',
-    ethWallet: '0xab3...De45',
-    role: 'Product Manager',
-    percentage: 25.45,
-    pieSliceEarned: 170,
-    recentlyActive: 'Jul 5, 2023',
-  },
-  {
-    id: 3,
-    name: 'Charlie Wang',
-    avatar: '/homepage/step2-icon.png',
-    ethWallet: '0xcd6...Fg78',
-    role: 'FE',
-    percentage: 18.73,
-    pieSliceEarned: 125,
-    recentlyActive: 'Jul 4, 2023',
-  },
-  {
-    id: 4,
-    name: 'Diana Liu',
-    avatar: '/homepage/step2-icon.png',
-    ethWallet: '0xef9...Hi01',
-    role: 'BE',
-    percentage: 12.56,
-    pieSliceEarned: 84,
-    recentlyActive: 'Jul 3, 2023',
-  },
-  {
-    id: 5,
-    name: 'Eva Zhang',
-    avatar: '/homepage/step2-icon.png',
-    ethWallet: '0xgh2...Jk23',
-    role: 'Designer',
-    percentage: 7.4,
-    pieSliceEarned: 49,
-    recentlyActive: 'Jul 2, 2023',
-  },
-];
+import { trpc } from '@/utils/trpc';
+import { LoadingSpinner } from './LoadingSpinner';
 
 type ViewMode = 'table' | 'chart';
 type SortBy = 'contributions' | 'percentage' | 'recent' | 'name';
 
-export function ContributorsSection() {
+interface ContributorsSectionProps {
+  projectId: string;
+}
+
+export function ContributorsSection({ projectId }: ContributorsSectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('contributions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Filter and sort contributors
-  const filteredContributors = mockContributors.filter(
-    (contributor) =>
-      contributor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contributor.role.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  const sortedContributors = [...filteredContributors].sort((a, b) => {
-    switch (sortBy) {
-      case 'contributions':
-        return b.pieSliceEarned - a.pieSliceEarned;
-      case 'percentage':
-        return b.percentage - a.percentage;
-      case 'recent':
-        return (
-          new Date(b.recentlyActive).getTime() -
-          new Date(a.recentlyActive).getTime()
-        );
-      case 'name':
-        return a.name.localeCompare(b.name);
-      default:
-        return 0;
-    }
+  // Fetch contributors data
+  const { data: contributorsData, isLoading, error } = trpc.contributor.list.useQuery({
+    projectId,
+    limit: 100, // Get all contributors
+    sortBy,
   });
 
-  const totalPages = Math.ceil(sortedContributors.length / itemsPerPage);
+  // Filter contributors based on search query
+  const filteredContributors = useMemo(() => {
+    if (!contributorsData?.contributors) return [];
+    
+    return contributorsData.contributors.filter((contributor) => {
+      const name = contributor.user.name || contributor.user.ensName || contributor.user.walletAddress;
+      const role = Array.isArray(contributor.role) ? contributor.role.join(' ') : contributor.role;
+      
+      return (
+        name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        role.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    });
+  }, [contributorsData?.contributors, searchQuery]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredContributors.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedContributors = sortedContributors.slice(
+  const paginatedContributors = filteredContributors.slice(
     startIndex,
     startIndex + itemsPerPage,
   );
 
   // Prepare pie chart data
-  const pieChartData = sortedContributors.map((contributor, index) => ({
-    name: contributor.name,
-    value: contributor.percentage,
-    color: `hsl(${45 + index * 72}, 70%, ${60 - index * 8}%)`,
-  }));
+  const pieChartData = useMemo(() => {
+    return filteredContributors.map((contributor, index) => ({
+      name: contributor.user.name || 
+             contributor.user.ensName || 
+             `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`,
+      value: contributor.percentage,
+      color: `hsl(${45 + index * 72}, 70%, ${60 - index * 8}%)`,
+    }));
+  }, [filteredContributors]);
+
+  // Helper function to format date
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  // Helper function to get role display
+  const getRoleDisplay = (roles: string[]) => {
+    if (Array.isArray(roles)) {
+      return roles.join(', ');
+    }
+    return roles || 'CONTRIBUTOR';
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
+
+  if (isLoading) {
+    return <LoadingSpinner text="Loading contributors..." />;
+  }
+
+  if (error) {
+    return (
+      <Alert color="red" icon={<IconInfoCircle size={16} />}>
+        Failed to load contributors: {error.message}
+      </Alert>
+    );
+  }
+
+  if (!contributorsData?.contributors || contributorsData.contributors.length === 0) {
+    return (
+      <Box
+        style={{
+          backgroundColor: '#F9F9F9',
+          borderRadius: 24,
+          padding: 40,
+          textAlign: 'center',
+        }}
+      >
+        <Text size="lg" c="gray.6">
+          No contributors found
+        </Text>
+        <Text size="sm" c="gray.5" mt={8}>
+          Contributors will appear here once they start making contributions.
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <Stack gap={32}>
@@ -139,7 +144,7 @@ export function ContributorsSection() {
             Contributors
           </Title>
           <Text size="lg" c="gray.6">
-            Meet the {mockContributors.length} Pie Bakers
+            Meet the {contributorsData.totalContributors} Pie Bakers
           </Text>
         </Group>
       </Group>
@@ -243,47 +248,51 @@ export function ContributorsSection() {
               </Table.Thead>
               <Table.Tbody>
                 {paginatedContributors.map((contributor) => (
-                  <Table.Tr key={contributor.id}>
+                  <Table.Tr key={contributor.user.id}>
                     <Table.Td>
                       <Group gap={12} align="center">
                         <Avatar
-                          src={contributor.avatar}
+                          src={contributor.user.avatar || '/homepage/step2-icon.png'}
                           size={32}
                           radius="50%"
                         />
-                        <Text fw={500}>{contributor.name}</Text>
+                        <Text fw={500}>
+                          {contributor.user.name || 
+                           contributor.user.ensName || 
+                           `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
+                        </Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={8} align="center">
                         <Text size="sm" c="gray.6">
-                          {contributor.ethWallet}
+                          {`${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
                         </Text>
                         <ActionIcon
                           variant="subtle"
                           color="gray"
                           size="xs"
-                          onClick={() => copyToClipboard(contributor.ethWallet)}
+                          onClick={() => copyToClipboard(contributor.user.walletAddress)}
                         >
                           <IconCopy size={12} />
                         </ActionIcon>
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{contributor.role}</Text>
+                      <Text size="sm">{getRoleDisplay(contributor.role)}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text fw={500}>{contributor.percentage}%</Text>
+                      <Text fw={500}>{contributor.percentage.toFixed(2)}%</Text>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={8} align="center">
                         <Text>🥧</Text>
-                        <Text fw={500}>{contributor.pieSliceEarned}</Text>
+                        <Text fw={500}>{contributor.totalPoints}</Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" c="gray.6">
-                        {contributor.recentlyActive}
+                        {formatDate(contributor.recentActivity)}
                       </Text>
                     </Table.Td>
                   </Table.Tr>
@@ -314,8 +323,8 @@ export function ContributorsSection() {
             <Group gap={16} align="center">
               <Text size="sm" c="gray.6">
                 {startIndex + 1}-
-                {Math.min(startIndex + itemsPerPage, sortedContributors.length)}{' '}
-                of {sortedContributors.length}
+                {Math.min(startIndex + itemsPerPage, filteredContributors.length)}{' '}
+                of {filteredContributors.length}
               </Text>
               <Pagination
                 value={currentPage}
@@ -353,8 +362,8 @@ export function ContributorsSection() {
 
           {/* Contributors Legend */}
           <Group gap={24} justify="center" wrap="wrap">
-            {sortedContributors.map((contributor, index) => (
-              <Group key={contributor.id} gap={8} align="center">
+            {filteredContributors.map((contributor, index) => (
+              <Group key={contributor.user.id} gap={8} align="center">
                 <Box
                   style={{
                     width: 12,
@@ -365,9 +374,15 @@ export function ContributorsSection() {
                     }%)`,
                   }}
                 />
-                <Avatar src={contributor.avatar} size={24} radius="50%" />
+                <Avatar 
+                  src={contributor.user.avatar || '/homepage/step2-icon.png'} 
+                  size={24} 
+                  radius="50%" 
+                />
                 <Text size="sm" fw={500}>
-                  {contributor.name} {contributor.percentage}%
+                  {contributor.user.name || 
+                   contributor.user.ensName || 
+                   `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`} {contributor.percentage.toFixed(1)}%
                 </Text>
               </Group>
             ))}

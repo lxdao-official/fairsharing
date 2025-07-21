@@ -92,7 +92,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             <ContributionsSection projectId={project.id} />
           </Suspense>
           <Suspense fallback={<LoadingSpinner />}>
-            <ContributorsSection />
+            <ContributorsSection projectId={project.id} />
           </Suspense>
         </Stack>
       </Container>

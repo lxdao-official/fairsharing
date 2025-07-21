@@ -91,6 +91,9 @@ export default function AppPage() {
     limit: 12,
   }) as any;
 
+  // TRPC query for tab counts
+  const { data: tabCounts } = trpc.project.getCounts.useQuery();
+
   const projects = projectData?.projects || [];
   const pagination = projectData?.pagination;
 
@@ -108,31 +111,6 @@ export default function AppPage() {
     }
     return num.toString();
   };
-
-  // Get counts for tabs
-  const getTabCounts = () => {
-    if (tab === 'my') {
-      return {
-        my: pagination?.total || 0,
-        following: 0, // Could be fetched separately
-        all: 0, // Would need separate query
-      };
-    } else if (tab === 'following') {
-      return {
-        my: 0, // Would need separate query
-        following: pagination?.total || 0,
-        all: 0, // Would need separate query
-      };
-    } else {
-      return {
-        my: 0, // Would need separate query
-        following: 0, // Would need separate query
-        all: pagination?.total || 0,
-      };
-    }
-  };
-
-  const tabCounts = getTabCounts();
 
   return (
     <AppShell header={{ height: 64 }} padding="md">
@@ -214,19 +192,19 @@ export default function AppPage() {
                       active={tab === 'my'}
                       onClick={() => setTab('my')}
                     >
-                      My Pie ({tabCounts.my})
+                      My Pie ({formatNumber(tabCounts?.my || 0)})
                     </TabButton>
                     <TabButton
                       active={tab === 'following'}
                       onClick={() => setTab('following')}
                     >
-                      Following
+                      Following ({formatNumber(tabCounts?.following || 0)})
                     </TabButton>
                     <TabButton
                       active={tab === 'all'}
                       onClick={() => setTab('all')}
                     >
-                      All Projects ({tabCounts.all})
+                      All Projects ({formatNumber(tabCounts?.all || 0)})
                     </TabButton>
                   </Group>
                 ) : (
@@ -234,7 +212,7 @@ export default function AppPage() {
                     active={tab === 'all'}
                     onClick={() => setTab('all')}
                   >
-                    All Projects ({tabCounts.all})
+                    All Projects ({formatNumber(tabCounts?.all || 0)})
                   </TabButton>
                 )}
                 <Group gap="sm">

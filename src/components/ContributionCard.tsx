@@ -61,25 +61,28 @@ interface ContributionCardProps {
   projectId: string;
 }
 
-export function ContributionCard({ contribution, projectId }: ContributionCardProps) {
+export function ContributionCard({
+  contribution,
+  projectId,
+}: ContributionCardProps) {
   const [isContentHovered, setIsContentHovered] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [voteLoading, setVoteLoading] = useState(false);
-  
+
   const { user } = useUser();
   const utils = trpc.useUtils();
-  
+
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
     contributionId: contribution.id,
   });
-  
+
   // Get current user's vote
-  const userVote = votesData?.votes.find(vote => vote.voterId === user?.id);
-  
+  const userVote = votesData?.votes.find((vote) => vote.voterId === user?.id);
+
   // Vote counts
   const voteCounts = votesData?.counts || { PASS: 0, FAIL: 0, SKIP: 0 };
-  
+
   // Vote mutation
   const createVote = trpc.vote.create.useMutation({
     onSuccess: () => {
@@ -89,7 +92,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
       setVoteLoading(false);
     },
   });
-  
+
   // Delete vote mutation
   const deleteVote = trpc.vote.delete.useMutation({
     onSuccess: () => {
@@ -99,21 +102,27 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
       setVoteLoading(false);
     },
   });
-  
+
   // Check if current user is a contributor
   const isOwnContribution = useMemo(() => {
-    return user ? contribution.contributors.some(c => c.contributor.id === user.id) : false;
+    return user
+      ? contribution.contributors.some((c) => c.contributor.id === user.id)
+      : false;
   }, [contribution.contributors, user]);
-  
+
   // Get primary contributor (first one)
   const primaryContributor = contribution.contributors[0]?.contributor;
-  
+
   // Format date - show start/end dates if available, otherwise creation date
   const formatDateRange = () => {
     if (contribution.startAt) {
-      const startDate = new Date(contribution.startAt).toISOString().split('T')[0];
+      const startDate = new Date(contribution.startAt)
+        .toISOString()
+        .split('T')[0];
       if (contribution.endAt) {
-        const endDate = new Date(contribution.endAt).toISOString().split('T')[0];
+        const endDate = new Date(contribution.endAt)
+          .toISOString()
+          .split('T')[0];
         // If same day, show only one date
         if (startDate === endDate) {
           return startDate;
@@ -126,7 +135,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
     // Fallback to creation date
     return new Date(contribution.createdAt).toISOString().split('T')[0];
   };
-  
+
   // Get status badge
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -186,7 +195,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
         return null;
     }
   };
-  
+
   // Get vote button style
   const getVoteItemStyle = (
     voteType: 'PASS' | 'FAIL' | 'SKIP',
@@ -202,7 +211,8 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
       transition: 'all 0.2s ease',
     };
 
-    const isDisabled = contribution.status !== 'VALIDATING' || !user || isOwnContribution;
+    const isDisabled =
+      contribution.status !== 'VALIDATING' || !user || isOwnContribution;
 
     if (isDisabled && !isActive) {
       return {
@@ -240,10 +250,16 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
 
   // Handle vote
   const handleVote = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
-    if (contribution.status !== 'VALIDATING' || !user || isOwnContribution || voteLoading) return;
-    
+    if (
+      contribution.status !== 'VALIDATING' ||
+      !user ||
+      isOwnContribution ||
+      voteLoading
+    )
+      return;
+
     setVoteLoading(true);
-    
+
     // If user already voted with same type, remove vote
     if (userVote?.type === voteType) {
       deleteVote.mutate({ contributionId: contribution.id });
@@ -266,17 +282,20 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
       }}
     >
       <Group align="flex-start" display="flex" style={{ flexWrap: 'nowrap' }}>
-        <Avatar 
-          src={primaryContributor?.avatar || '/homepage/step2-icon.png'} 
-          size={40} 
-          radius="50%" 
+        <Avatar
+          src={primaryContributor?.avatar || '/homepage/step2-icon.png'}
+          size={40}
+          radius="50%"
         />
         <Stack gap={8} style={{ flex: 1 }}>
           <Group justify="space-between">
             <Text fw={600} size="md">
-              {primaryContributor?.name || 
-               primaryContributor?.ensName || 
-               `${primaryContributor?.walletAddress.slice(0, 6)}...${primaryContributor?.walletAddress.slice(-4)}`}
+              {primaryContributor?.name ||
+                primaryContributor?.ensName ||
+                `${primaryContributor?.walletAddress.slice(
+                  0,
+                  6,
+                )}...${primaryContributor?.walletAddress.slice(-4)}`}
             </Text>
             <Group align="center">
               {getStatusBadge(contribution.status)}
@@ -292,12 +311,13 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
               )}
             </Group>
           </Group>
-          
+
           <Box>
             <Text
               size="md"
               style={{
-                cursor: contribution.content.length > 100 ? 'pointer' : 'default',
+                cursor:
+                  contribution.content.length > 100 ? 'pointer' : 'default',
                 lineHeight: 1.5,
                 transition: 'all 0.2s ease',
               }}
@@ -312,7 +332,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
               {contribution.content}
             </Text>
           </Box>
-          
+
           <Group>
             {contribution.hours && (
               <Group gap={4} align="center">
@@ -337,7 +357,7 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
               </Group>
             )}
           </Group>
-          
+
           <Group
             justify="space-between"
             align="center"
@@ -346,7 +366,11 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
           >
             <Group gap={16} align="center">
               <Text fw={600} size="sm">
-                {contribution.contributors.reduce((sum, c) => sum + (c.points || 0), 0)} LXP
+                {contribution.contributors.reduce(
+                  (sum, c) => sum + (c.points || 0),
+                  0,
+                )}{' '}
+                LXP
               </Text>
             </Group>
 
@@ -404,7 +428,8 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
             color="yellow"
             variant="light"
           >
-            Submitting changes will restart the vote and erase all previous votes.
+            Submitting changes will restart the vote and erase all previous
+            votes.
           </Alert>
 
           <ContributionForm
@@ -416,11 +441,16 @@ export function ContributionCard({ contribution, projectId }: ContributionCardPr
               hours: contribution.hours || 0,
               contributor: primaryContributor?.name || '',
               date: [
-                contribution.startAt ? new Date(contribution.startAt) : new Date(contribution.createdAt),
+                contribution.startAt
+                  ? new Date(contribution.startAt)
+                  : new Date(contribution.createdAt),
                 contribution.endAt ? new Date(contribution.endAt) : null,
               ] as [Date | null, Date | null],
               hashtag: contribution.tags[0] || '',
-              reward: contribution.contributors.reduce((sum, c) => sum + (c.points || 0), 0),
+              reward: contribution.contributors.reduce(
+                (sum, c) => sum + (c.points || 0),
+                0,
+              ),
             }}
             onSubmit={() => {
               setIsEditModalOpen(false);

@@ -593,6 +593,61 @@ export const projectRouter = createTRPCRouter({
       }
     }),
 
+  // Get counts for all tabs
+  getCounts: publicProcedure
+    .query(async ({ ctx }: { ctx: any }) => {
+      const userId = ctx.user?.id;
+      
+      // Build base conditions
+      const baseConditions = {
+        deletedAt: null,
+        status: 'ACTIVE',
+      };
+
+      // Get counts for each tab
+      const [allCount, myCount, followingCount] = await Promise.all([
+        // All projects count
+        db.project.count({
+          where: baseConditions,
+        }),
+        // My projects count (owned or member)
+        userId ? db.project.count({
+          where: {
+            ...baseConditions,
+            OR: [
+              { ownerId: userId },
+              {
+                members: {
+                  some: {
+                    userId: userId,
+                    deletedAt: null,
+                  },
+                },
+              },
+            ],
+          },
+        }) : 0,
+        // Following projects count
+        userId ? db.project.count({
+          where: {
+            ...baseConditions,
+            followers: {
+              some: {
+                userId: userId,
+                deletedAt: null,
+              },
+            },
+          },
+        }) : 0,
+      ]);
+
+      return {
+        all: allCount,
+        my: myCount,
+        following: followingCount,
+      };
+    }),
+
   // Update project
   update: protectedProcedure
     .input(createProjectSchema.extend({

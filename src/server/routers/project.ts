@@ -7,6 +7,7 @@ import {
   MemberRole,
   ProjectValidateType,
   ProjectSubmitStrategy,
+  ProjectStatus,
 } from '@prisma/client';
 
 // Input validation schema for creating a project
@@ -130,8 +131,6 @@ export const projectRouter = createTRPCRouter({
         input: z.infer<typeof createProjectSchema>;
         ctx: any;
       }) => {
-        const userId = ctx.user?.id;
-
         try {
           // Generate unique project key
           let projectKey = generateProjectKey(input.projectName);
@@ -350,7 +349,7 @@ export const projectRouter = createTRPCRouter({
       // Build where conditions based on filter
       let whereConditions: any = {
         deletedAt: null,
-        status: 'ACTIVE',
+        status: ProjectStatus.ACTIVE,
       };
 
       if (filter === 'my') {
@@ -601,7 +600,7 @@ export const projectRouter = createTRPCRouter({
       // Build base conditions
       const baseConditions = {
         deletedAt: null,
-        status: 'ACTIVE',
+        status: ProjectStatus.ACTIVE,
       };
 
       // Get counts for each tab

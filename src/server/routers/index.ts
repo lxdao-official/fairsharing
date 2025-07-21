@@ -5,6 +5,7 @@ import { uploadRouter } from './upload';
 import { projectRouter } from './project';
 import { contributionRouter } from './contribution';
 import { voteRouter } from './vote';
+import { contributorRouter } from './contributor';
 
 export const appRouter = createTRPCRouter({
   // User authentication and profile management
@@ -21,6 +22,9 @@ export const appRouter = createTRPCRouter({
 
   // Vote management
   vote: voteRouter,
+
+  // Contributor statistics and analytics
+  contributor: contributorRouter,
 
   // Legacy demo endpoints (can be removed later)
   hello: publicProcedure

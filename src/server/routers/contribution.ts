@@ -350,6 +350,14 @@ export const contributionRouter = createTRPCRouter({
           });
         }
 
+        // Prevent editing of passed contributions as they are finalized
+        if (existingContribution.status === ContributionStatus.PASSED) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot edit a passed contribution. It has been finalized and cannot be modified.',
+          });
+        }
+
         // Validate that all contributor users exist
         const contributorUsers = await db.user.findMany({
           where: {
@@ -482,6 +490,14 @@ export const contributionRouter = createTRPCRouter({
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'You do not have permission to delete this contribution',
+          });
+        }
+
+        // Prevent deletion of passed contributions as they are finalized
+        if (contribution.status === ContributionStatus.PASSED) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot delete a passed contribution. It has been finalized and cannot be removed.',
           });
         }
 

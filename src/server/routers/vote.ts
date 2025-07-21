@@ -29,6 +29,140 @@ const getMyVotesSchema = z.object({
   projectId: z.string().cuid(),
 });
 
+// Interface for future blockchain integration
+interface BlockchainVotingService {
+  submitVotingResult(contributionId: string, passed: boolean, votes: any): Promise<string>;
+  getVotingStatus(contributionId: string): Promise<any>;
+}
+
+// Placeholder for blockchain service - will be implemented later
+const blockchainService: BlockchainVotingService | null = null;
+
+// Apply voting strategy and check if contribution should change status
+async function applyVotingStrategy(contributionId: string) {
+  const contribution = await db.contribution.findUnique({
+    where: { id: contributionId, deletedAt: null },
+    include: {
+      project: {
+        include: {
+          members: {
+            where: { deletedAt: null },
+            select: { role: true },
+          },
+        },
+      },
+      votes: {
+        where: { deletedAt: null },
+        select: { type: true, voterId: true },
+      },
+    },
+  });
+
+  if (!contribution || contribution.status !== ContributionStatus.VALIDATING) {
+    return;
+  }
+
+  const project = contribution.project;
+  const approvalStrategy = project.approvalStrategy as any;
+  const strategy = approvalStrategy?.strategy || 'simple';
+  
+  // Count eligible voters
+  let eligibleVoters = 0;
+  if (project.validateType === ProjectValidateType.SPECIFIC_MEMBERS) {
+    eligibleVoters = project.members.filter(member =>
+      member.role.includes(MemberRole.VALIDATOR)
+    ).length;
+  } else {
+    eligibleVoters = project.members.length;
+  }
+
+  // Count votes
+  const passVotes = contribution.votes.filter(v => v.type === VoteType.PASS).length;
+  const failVotes = contribution.votes.filter(v => v.type === VoteType.FAIL).length;
+  const skipVotes = contribution.votes.filter(v => v.type === VoteType.SKIP).length;
+  const totalVotes = passVotes + failVotes + skipVotes;
+
+  let shouldPass = false;
+  let shouldFail = false;
+  let statusDetermined = false;
+
+  // Apply different voting strategies
+  switch (strategy) {
+    case 'simple': 
+      // Simple Majority: If more than 50% of the votes go to "Approve" (PASS)
+      const nonSkipVotes = totalVotes - skipVotes;
+      if (nonSkipVotes > 0) {
+        shouldPass = passVotes > nonSkipVotes / 2;
+        shouldFail = failVotes > nonSkipVotes / 2;
+        statusDetermined = shouldPass || shouldFail;
+      }
+      break;
+
+    case 'quorum': 
+      // Quorum + Majority: Currently disabled in frontend
+      // Future implementation would require quorum + majority logic
+      break;
+
+    case 'absolute': 
+      // Absolute Threshold: Currently disabled in frontend
+      // Future implementation would require fixed number/percentage threshold
+      break;
+
+    case 'relative': 
+      // Relative Majority: Currently disabled in frontend
+      // Future implementation would be whoever has most votes wins
+      break;
+
+    default:
+      // Fallback to simple majority for unknown strategies
+      const defaultNonSkipVotes = totalVotes - skipVotes;
+      if (defaultNonSkipVotes > 0) {
+        shouldPass = passVotes > defaultNonSkipVotes / 2;
+        shouldFail = failVotes > defaultNonSkipVotes / 2;
+        statusDetermined = shouldPass || shouldFail;
+      }
+      break;
+  }
+
+  // Update contribution status if determined
+  if (statusDetermined) {
+    const newStatus = shouldPass ? ContributionStatus.PASSED : ContributionStatus.FAILED;
+    
+    // Log voting result for debugging
+    console.log(`Voting result for contribution ${contributionId}:`, {
+      strategy,
+      passVotes,
+      failVotes,
+      skipVotes,
+      totalVotes,
+      eligibleVoters,
+      newStatus,
+      shouldPass,
+      shouldFail,
+    });
+    
+    await db.contribution.update({
+      where: { id: contributionId },
+      data: {
+        status: newStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Prepare for future blockchain integration
+    if (blockchainService) {
+      // This will be implemented when blockchain integration is ready
+      // await blockchainService.submitVotingResult(contributionId, shouldPass, {
+      //   passVotes,
+      //   failVotes,
+      //   skipVotes,
+      //   totalVotes,
+      //   eligibleVoters,
+      // });
+    }
+  }
+}
+
 // Helper function to check voting permissions
 async function checkVotingPermissions(userId: string, contributionId: string) {
   const contribution = await db.contribution.findUnique({
@@ -162,6 +296,9 @@ export const voteRouter = createTRPCRouter({
             },
           });
         }
+
+        // Apply voting strategy to check if contribution status should change
+        await applyVotingStrategy(input.contributionId);
 
         return {
           success: true,
@@ -347,6 +484,9 @@ export const voteRouter = createTRPCRouter({
           where: { id: existingVote.id },
           data: { deletedAt: new Date() },
         });
+
+        // Apply voting strategy to check if contribution status should change
+        await applyVotingStrategy(input.contributionId);
 
         return {
           success: true,

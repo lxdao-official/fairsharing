@@ -91,7 +91,10 @@ export function ContributionCard({
   // Vote mutation
   const createVote = trpc.vote.create.useMutation({
     onSuccess: () => {
+      // Invalidate vote data for this contribution
       utils.vote.get.invalidate({ contributionId: contribution.id });
+      // Invalidate contribution list to refresh statuses
+      utils.contribution.list.invalidate({ projectId });
     },
     onSettled: () => {
       setVoteLoading(false);
@@ -101,7 +104,10 @@ export function ContributionCard({
   // Delete vote mutation
   const deleteVote = trpc.vote.delete.useMutation({
     onSuccess: () => {
+      // Invalidate vote data for this contribution
       utils.vote.get.invalidate({ contributionId: contribution.id });
+      // Invalidate contribution list to refresh statuses
+      utils.contribution.list.invalidate({ projectId });
     },
     onSettled: () => {
       setVoteLoading(false);
@@ -304,7 +310,7 @@ export function ContributionCard({
             </Text>
             <Group align="center">
               {getStatusBadge(contribution.status)}
-              {isOwnContribution && (
+              {isOwnContribution && contribution.status !== 'PASSED' && (
                 <ActionIcon
                   variant="subtle"
                   color="gray"

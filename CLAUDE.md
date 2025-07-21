@@ -64,6 +64,8 @@ Always run `npm run lint` after making changes to ensure code quality.
 - Contributions support multiple contributors with individual hour/point tracking
 - Status flow: VALIDATING → PASSED/FAILED → ON_CHAIN
 - Validation strategies configurable per project (SPECIFIC_MEMBERS/ALL_MEMBERS)
+- Contribution updates create new versions with soft-deleted history preservation
+- Date display prioritizes startAt/endAt over createdAt timestamps
 
 #### Project Structure
 - Projects identified by human-readable keys (unique)

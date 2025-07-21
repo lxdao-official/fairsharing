@@ -11,6 +11,7 @@ import {
   IconWorld,
 } from '@tabler/icons-react';
 import { ContributionForm } from './ContributionForm';
+import { VotingEligibilityPanel } from './VotingEligibilityPanel';
 import { useState } from 'react';
 import { ProjectEditModal } from './ProjectEditModal';
 
@@ -21,6 +22,7 @@ interface ProjectData {
   description: string;
   logo?: string | null;
   tokenSymbol?: string | null;
+  validateType: string;
   links?: any;
   owner: {
     id: string;
@@ -29,6 +31,17 @@ interface ProjectData {
     name?: string | null;
     avatar?: string | null;
   };
+  members: Array<{
+    id: string;
+    role: string[];
+    user: {
+      id: string;
+      walletAddress: string;
+      ensName?: string | null;
+      name?: string | null;
+      avatar?: string | null;
+    };
+  }>;
   _count: {
     contributions: number;
     members: number;
@@ -166,9 +179,10 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
               </Group>
             )}
           </Stack>
-          <Box style={{ flex: 1 }}>
+          <Stack gap={24} style={{ flex: 1 }}>
             <ContributionForm projectId={project.id} />
-          </Box>
+            <VotingEligibilityPanel project={project} />
+          </Stack>
         </Group>
       </Stack>
       

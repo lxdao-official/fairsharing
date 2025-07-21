@@ -69,14 +69,20 @@ async function checkVotingPermissions(userId: string, contributionId: string) {
     c => c.contributorId === userId
   );
   
-  if (isOwnContribution) {
+  const project = contribution.project;
+  
+  // Check if user is a validator (will be checked later in the validation permissions section)
+  const isValidator = project.members.some(
+    member => member.userId === userId && member.role.includes(MemberRole.VALIDATOR)
+  );
+  
+  // Only allow own contribution voting if user is a validator
+  if (isOwnContribution && !isValidator) {
     throw new TRPCError({
       code: 'FORBIDDEN',
-      message: 'You cannot vote on your own contribution',
+      message: 'You cannot vote on your own contribution unless you are a validator',
     });
   }
-
-  const project = contribution.project;
 
   // Check validation permissions based on project settings
   if (project.validateType === ProjectValidateType.SPECIFIC_MEMBERS) {

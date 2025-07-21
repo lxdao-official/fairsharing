@@ -10,6 +10,7 @@ import {
   generateJWT,
   type AuthSession,
 } from '@/lib/auth';
+import { ProjectStatus } from '@prisma/client';
 
 export const userRouter = createTRPCRouter({
   /**
@@ -209,5 +210,35 @@ export const userRouter = createTRPCRouter({
         success: true,
         user: updatedUser,
       };
+    }),
+
+  // Get user's project memberships
+  getProjectMemberships: protectedProcedure
+    .query(async ({ ctx }: { ctx: any }) => {
+      const userId = ctx.user?.id;
+      
+      const memberships = await db.projectMember.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+          project: {
+            deletedAt: null,
+            status: ProjectStatus.ACTIVE,
+          },
+        },
+        select: {
+          projectId: true,
+          role: true,
+          project: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return memberships;
     }),
 });

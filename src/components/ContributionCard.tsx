@@ -26,6 +26,7 @@ import { useState, useMemo } from 'react';
 import { ContributionForm } from './ContributionForm';
 import { trpc } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
+import { useUserProjects } from '@/hooks/useUserProjects';
 
 interface ContributionData {
   id: string;
@@ -70,6 +71,7 @@ export function ContributionCard({
   const [voteLoading, setVoteLoading] = useState(false);
 
   const { user } = useUser();
+  const { isValidatorForProject } = useUserProjects();
   const utils = trpc.useUtils();
 
   // Get votes data for this contribution
@@ -82,6 +84,9 @@ export function ContributionCard({
 
   // Vote counts
   const voteCounts = votesData?.counts || { PASS: 0, FAIL: 0, SKIP: 0 };
+
+  // Check if current user is a validator for this project
+  const isValidator = isValidatorForProject(projectId);
 
   // Vote mutation
   const createVote = trpc.vote.create.useMutation({
@@ -212,7 +217,7 @@ export function ContributionCard({
     };
 
     const isDisabled =
-      contribution.status !== 'VALIDATING' || !user || isOwnContribution;
+      contribution.status !== 'VALIDATING' || !user || (isOwnContribution && !isValidator);
 
     if (isDisabled && !isActive) {
       return {
@@ -253,7 +258,7 @@ export function ContributionCard({
     if (
       contribution.status !== 'VALIDATING' ||
       !user ||
-      isOwnContribution ||
+      (isOwnContribution && !isValidator) ||
       voteLoading
     )
       return;

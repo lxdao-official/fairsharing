@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vibeman/execution-logs/*
+.vibeman/workflows.json
+.vibeman/ai-routing.example.json

@@ -1,0 +1,67 @@
+{
+  "agents": {
+    "defaultProvider": "claude-code",
+    "codingAgent": {
+      "provider": "claude-code",
+      "model": "claude-sonnet-4-20250514"
+    },
+    "judgeAgent": {
+      "provider": "codex",
+      "model": "gpt-5-codex-high",
+      "reviewThresholdScore": 70
+    },
+    "defaultPrompts": {
+      "systemPrompt": "You are a senior software engineer assistant. Follow best practices and write clean, maintainable code.",
+      "taskPrompt": "Please implement the following task with attention to quality and testing."
+    },
+    "providers": {}
+  },
+  "defaultWorkflow": {
+    "autoQualityChecks": true,
+    "requireHumanApproval": true,
+    "aiCodeReview": true,
+    "maxImplementationAttempts": 3,
+    "autoCommit": false
+  },
+  "quality": {
+    "checks": []
+  },
+  "development": {
+    "git": {
+      "defaultBranch": "main"
+    },
+    "editor": {
+      "type": "cursor",
+      "command": "cursor",
+      "name": "Cursor",
+      "openFileCommand": [
+        "cursor",
+        "${file}"
+      ],
+      "openFolderCommand": [
+        "cursor",
+        "${folder}"
+      ]
+    },
+    "terminal": {
+      "type": "warp",
+      "command": "open",
+      "args": [
+        "-a",
+        "Warp"
+      ],
+      "name": "Warp",
+      "openCommand": [
+        "open",
+        "-a",
+        "Warp",
+        "${cwd}"
+      ]
+    }
+  },
+  "server": {
+    "port": 6969,
+    "host": "localhost",
+    "autoOpenBrowser": true
+  }
+}

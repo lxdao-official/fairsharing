@@ -149,6 +149,7 @@ model Contribution {
   deletedAt    DateTime?
 
   @@index([projectId, status, createdAt(sort: Desc)], map: "idx_contrib_proj_status_time")
+  @@index([projectId, createdAt(sort: Desc), deletedAt], map: "idx_contrib_sidebar_query")
   @@index([deletedAt])
   @@index([tags], type: Gin)
   @@map("contributions")

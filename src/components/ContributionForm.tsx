@@ -170,6 +170,7 @@ export function ContributionForm({
       if (projectId) {
         utils.contribution.list.invalidate({ projectId });
       }
+      void utils.user.getSidebarProjects.invalidate();
     },
     onError: (error) => {
       setError(error.message);

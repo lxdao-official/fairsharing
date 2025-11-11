@@ -37,6 +37,7 @@ export default function CreateProjectPage() {
   const { address } = useAccount();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const createProjectMutation = trpc.project.create.useMutation();
+  const utils = trpc.useUtils();
   const router = useRouter();
   
   const [successModal, setSuccessModal] = useState(false);
@@ -104,6 +105,7 @@ export default function CreateProjectPage() {
         name: result.project.name,
         key: result.project.key
       });
+      void utils.user.getSidebarProjects.invalidate();
       setSuccessModal(true);
       
       // 3秒后自动跳转

@@ -19,6 +19,8 @@ model User {
   bio            String?
   links          Json?
   nonce          String                    @default(cuid())
+  profileCompletedAt    DateTime?
+  profilePromptDismissedAt DateTime?
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
   deletedAt      DateTime?

@@ -6,17 +6,50 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/utils/trpc';
 import { useAuth } from '@/hooks/useAuth';
+import { ProfileCompletionModal } from './ProfileCompletionModal';
 
 export function ConnectWallet() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const { session, isAuthenticated, setSession } = useAuth();
   const { signMessageAsync } = useSignMessage();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // tRPC hooks
   const utils = trpc.useUtils();
   const authenticateMutation = trpc.user.authenticate.useMutation();
+
+  const profileStatusQuery = trpc.user.getProfileCompletionStatus.useQuery(
+    undefined,
+    {
+      enabled: isAuthenticated && !isAuthenticating,
+    },
+  );
+
+  useEffect(() => {
+    if (profileStatusQuery.data?.shouldPrompt) {
+      setIsProfileModalOpen(true);
+    } else {
+      setIsProfileModalOpen(false);
+    }
+  }, [profileStatusQuery.data?.shouldPrompt]);
+
+  const handleProfileUpdated = (updatedUser: {
+    id: string;
+    walletAddress: string;
+    name?: string | null;
+    avatar?: string | null;
+  }) => {
+    if (!session) return;
+    setSession({
+      ...session,
+      user: {
+        ...session.user,
+        name: updatedUser.name ?? session.user.name,
+        avatar: updatedUser.avatar ?? session.user.avatar,
+      },
+    });
+  };
 
   const handleManualSign = async () => {
     if (!address) return;
@@ -60,7 +93,7 @@ export function ConnectWallet() {
   };
 
   return (
-    <div>
+    <>
       <ConnectKitButton.Custom>
         {({ isConnected, isConnecting, show, address, ensName }) => {
           // Not connected state
@@ -117,6 +150,24 @@ export function ConnectWallet() {
           );
         }}
       </ConnectKitButton.Custom>
-    </div>
+      <ProfileCompletionModal
+        opened={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={
+          profileStatusQuery.data?.user
+            ? {
+                id: profileStatusQuery.data.user.id,
+                walletAddress: profileStatusQuery.data.user.walletAddress,
+                ensName: profileStatusQuery.data.user.ensName,
+                name: profileStatusQuery.data.user.name,
+                avatar: profileStatusQuery.data.user.avatar,
+                bio: profileStatusQuery.data.user.bio,
+                links: profileStatusQuery.data.user.links,
+              }
+            : undefined
+        }
+        onProfileUpdated={handleProfileUpdated}
+      />
+    </>
   );
 }

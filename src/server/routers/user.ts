@@ -10,7 +10,10 @@ import {
   generateJWT,
   type AuthSession,
 } from '@/lib/auth';
-import { ProjectStatus } from '@prisma/client';
+import { ProjectStatus, type Prisma } from '@prisma/client';
+
+const walletRegex = /^0x[a-fA-F0-9]{40}$/;
+const PROFILE_PROMPT_COOLDOWN_DAYS = 7;
 
 export const userRouter = createTRPCRouter({
   /**
@@ -21,7 +24,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         walletAddress: z
           .string()
-          .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'),
+          .regex(walletRegex, 'Invalid wallet address format'),
       }),
     )
     .query(async ({ input }) => {
@@ -85,7 +88,7 @@ export const userRouter = createTRPCRouter({
       z.object({
         walletAddress: z
           .string()
-          .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'),
+          .regex(walletRegex, 'Invalid wallet address format'),
         signature: z.string().min(1, 'Signature is required'),
         message: z.string().min(1, 'Message is required'),
       }),
@@ -184,15 +187,62 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const updatedUser = await db.user.update({
-        where: { id: (ctx as any).user.id },
-        data: {
-          name: input.name,
-          bio: input.bio,
-          avatar: input.avatar,
-          links: input.links,
-          updatedAt: new Date(),
+      const userId = (ctx as any).user.id;
+
+      const existingUser = await db.user.findUnique({
+        where: { id: userId, deletedAt: null },
+        select: {
+          id: true,
+          walletAddress: true,
+          ensName: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          links: true,
+          profileCompletedAt: true,
+          profilePromptDismissedAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
+      });
+
+      if (!existingUser) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User not found',
+        });
+      }
+
+      const finalName =
+        input.name !== undefined ? input.name : existingUser.name;
+      const finalAvatar =
+        input.avatar !== undefined ? input.avatar : existingUser.avatar;
+
+      const hasDisplayName =
+        (finalName && finalName.trim().length > 0) || !!existingUser.ensName;
+      const hasAvatar = !!finalAvatar;
+      const isCompleted = hasDisplayName && hasAvatar;
+
+      const updateData: Prisma.UserUpdateInput = {
+        name: input.name,
+        bio: input.bio,
+        avatar: input.avatar,
+        links: input.links,
+        updatedAt: new Date(),
+      };
+
+      if (isCompleted) {
+        updateData.profileCompletedAt =
+          existingUser.profileCompletedAt ?? new Date();
+        updateData.profilePromptDismissedAt = null;
+      } else {
+        updateData.profileCompletedAt = null;
+        updateData.profilePromptDismissedAt = null;
+      }
+
+      const updatedUser = await db.user.update({
+        where: { id: userId },
+        data: updateData,
         select: {
           id: true,
           walletAddress: true,
@@ -203,12 +253,244 @@ export const userRouter = createTRPCRouter({
           links: true,
           createdAt: true,
           updatedAt: true,
+          profileCompletedAt: true,
+          profilePromptDismissedAt: true,
         },
       });
 
       return {
         success: true,
         user: updatedUser,
+      };
+    }),
+
+  getProfileCompletionStatus: protectedProcedure.query(
+    async ({ ctx }: { ctx: any }) => {
+      const user = await db.user.findUnique({
+        where: { id: ctx.user?.id, deletedAt: null },
+        select: {
+          id: true,
+          walletAddress: true,
+          ensName: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          links: true,
+          profileCompletedAt: true,
+          profilePromptDismissedAt: true,
+        },
+      });
+
+      if (!user) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User not found',
+        });
+      }
+
+      const hasDisplayName =
+        (user.name && user.name.trim().length > 0) || !!user.ensName;
+      const hasAvatar = !!user.avatar;
+      const isCompleted = hasDisplayName && hasAvatar;
+
+      const requiredFields: Array<'name' | 'avatar'> = [];
+      if (!hasDisplayName) requiredFields.push('name');
+      if (!hasAvatar) requiredFields.push('avatar');
+
+      const cooldownBoundary = new Date();
+      cooldownBoundary.setDate(
+        cooldownBoundary.getDate() - PROFILE_PROMPT_COOLDOWN_DAYS,
+      );
+
+      const shouldPrompt =
+        !isCompleted &&
+        (!user.profilePromptDismissedAt ||
+          user.profilePromptDismissedAt < cooldownBoundary);
+
+      return {
+        isCompleted,
+        shouldPrompt,
+        requiredFields,
+        user,
+      };
+    },
+  ),
+
+  dismissProfilePrompt: protectedProcedure.mutation(
+    async ({ ctx }: { ctx: any }) => {
+      await db.user.update({
+        where: { id: ctx.user?.id },
+        data: {
+          profilePromptDismissedAt: new Date(),
+        },
+      });
+
+      return { success: true };
+    },
+  ),
+
+  getPublicProfile: publicProcedure
+    .input(
+      z.object({
+        addressOrEns: z.string().min(1, 'Address or ENS is required'),
+      }),
+    )
+    .query(async ({ input }) => {
+      const searchValue = input.addressOrEns.trim();
+      const isAddress = walletRegex.test(searchValue.toLowerCase());
+
+      const user = await db.user.findFirst({
+        where: {
+          deletedAt: null,
+          ...(isAddress
+            ? { walletAddress: searchValue.toLowerCase() }
+            : {
+                ensName: {
+                  equals: searchValue,
+                  mode: 'insensitive',
+                },
+              }),
+        },
+        select: {
+          id: true,
+          walletAddress: true,
+          ensName: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          links: true,
+          createdAt: true,
+        },
+      });
+
+      if (!user) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'User not found',
+        });
+      }
+
+      return { user };
+    }),
+
+  getProfileStats: publicProcedure
+    .input(
+      z.object({
+        userId: z.string().cuid(),
+        windowDays: z.number().min(1).max(365).default(365),
+      }),
+    )
+    .query(async ({ input }) => {
+      const windowStart = new Date();
+      windowStart.setDate(windowStart.getDate() - input.windowDays);
+
+      const contributions = await db.contribution.findMany({
+        where: {
+          deletedAt: null,
+          createdAt: {
+            gte: windowStart,
+          },
+          contributors: {
+            some: {
+              contributorId: input.userId,
+              deletedAt: null,
+            },
+          },
+        },
+        select: {
+          id: true,
+          status: true,
+          projectId: true,
+          createdAt: true,
+          project: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              description: true,
+              logo: true,
+            },
+          },
+        },
+      });
+
+      const totals = contributions.reduce(
+        (acc, contribution) => {
+          acc.contributions += 1;
+          if (contribution.status === 'PASSED') acc.passed += 1;
+          if (contribution.status === 'FAILED') acc.failed += 1;
+          if (contribution.status === 'VALIDATING') acc.validating += 1;
+          acc.projects.add(contribution.projectId);
+          return acc;
+        },
+        {
+          contributions: 0,
+          passed: 0,
+          failed: 0,
+          validating: 0,
+          projects: new Set<string>(),
+        },
+      );
+
+      const projectMap = new Map<
+        string,
+        {
+          project: {
+            id: string;
+            key: string;
+            name: string;
+            description: string | null;
+            logo: string | null;
+          };
+          contributions: number;
+          lastContributionAt: Date;
+        }
+      >();
+
+      contributions.forEach((contribution) => {
+        const project = contribution.project;
+        if (!project) return;
+
+        if (!projectMap.has(project.id)) {
+          projectMap.set(project.id, {
+            project,
+            contributions: 1,
+            lastContributionAt: contribution.createdAt,
+          });
+        } else {
+          const projectStats = projectMap.get(project.id)!;
+          projectStats.contributions += 1;
+          if (contribution.createdAt > projectStats.lastContributionAt) {
+            projectStats.lastContributionAt = contribution.createdAt;
+          }
+        }
+      });
+
+      const activeProjects = Array.from(projectMap.values())
+        .sort(
+          (a, b) =>
+            b.lastContributionAt.getTime() - a.lastContributionAt.getTime(),
+        )
+        .slice(0, 9)
+        .map((item) => ({
+          id: item.project.id,
+          key: item.project.key,
+          name: item.project.name,
+          description: item.project.description,
+          logo: item.project.logo,
+          contributions: item.contributions,
+          lastContributionAt: item.lastContributionAt,
+        }));
+
+      return {
+        totals: {
+          contributions: totals.contributions,
+          passed: totals.passed,
+          failed: totals.failed,
+          validating: totals.validating,
+          projects: totals.projects.size,
+        },
+        activeProjects,
       };
     }),
 

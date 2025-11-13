@@ -9,12 +9,9 @@ import {
   IconPlus,
   IconMinus,
 } from '@tabler/icons-react';
+import type { ProjectLinkInput } from '@/types/project';
 
-// External link interface for form data
-export interface LinkItem {
-  type: 'twitter' | 'telegram' | 'website' | 'github' | 'discord' | 'custom';
-  url: string;
-}
+export type LinkItem = ProjectLinkInput;
 
 // Internal interface for UI rendering (includes UI properties)
 interface InternalLinkItem extends LinkItem {
@@ -24,8 +21,8 @@ interface InternalLinkItem extends LinkItem {
 }
 
 interface OtherLinksManagementProps {
-  value?: LinkItem[];
-  onChange?: (links: LinkItem[]) => void;
+  value?: ProjectLinkInput[];
+  onChange?: (links: ProjectLinkInput[]) => void;
 }
 
 function OtherLinksManagement({

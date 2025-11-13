@@ -11,23 +11,54 @@ import {
 } from '@mantine/core';
 import { IconPlus, IconInfoCircle, IconTrash } from '@tabler/icons-react';
 import { AddressInput } from './AddressInput';
+import type { ProjectMemberInput } from '@/types/project';
 
-// External member interface for form data
-export interface Member {
-  address: string;
-  isValidator: boolean;
-  isContributor: boolean;
-  isAdmin: boolean;
-}
+export type Member = ProjectMemberInput;
 
 interface MemberManagementProps {
-  value?: Member[];
-  onChange?: (members: Member[]) => void;
+  value?: ProjectMemberInput[];
+  onChange?: (members: ProjectMemberInput[]) => void;
+  ownerAddress: string;
 }
 
-function MemberManagement({ value = [], onChange }: MemberManagementProps) {
+function MemberManagement({
+  value = [],
+  onChange,
+  ownerAddress,
+}: MemberManagementProps) {
+  const normalizedOwner = ownerAddress.toLowerCase();
   // Ensure we always have at least one member
-  const members =
+  const ensureOwnerPresent = (membersList: ProjectMemberInput[]) => {
+    const hasOwner = membersList.some(
+      (member) => member.address.toLowerCase() === normalizedOwner,
+    );
+
+    if (!hasOwner) {
+      return [
+        {
+          address: ownerAddress,
+          isAdmin: true,
+          isValidator: true,
+          isContributor: true,
+        },
+        ...membersList,
+      ];
+    }
+
+    return membersList.map((member) =>
+      member.address.toLowerCase() === normalizedOwner
+        ? {
+            ...member,
+            address: ownerAddress,
+            isAdmin: true,
+            isValidator: true,
+            isContributor: true,
+          }
+        : member,
+    );
+  };
+
+  const members = ensureOwnerPresent(
     value.length > 0
       ? value
       : [
@@ -37,9 +68,12 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
             isContributor: false,
             isAdmin: false,
           },
-        ];
+        ],
+  );
 
   const addMember = () => {
+    const hasEmptyRow = members.some((member) => member.address.trim() === '');
+    if (hasEmptyRow) return;
     const newMember: Member = {
       address: '',
       isValidator: false,
@@ -54,6 +88,9 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
     field: keyof Member,
     newValue: string | boolean,
   ) => {
+    if (members[index].address.toLowerCase() === normalizedOwner) {
+      return;
+    }
     const updatedMembers = members.map((member, i) =>
       i === index ? { ...member, [field]: newValue } : member,
     );
@@ -61,11 +98,14 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
   };
 
   const removeMember = (index: number) => {
-    // Keep at least one member row
-    if (members.length > 1) {
-      const filteredMembers = members.filter((_, i) => i !== index);
-      onChange?.(filteredMembers);
+    if (
+      members[index].address.toLowerCase() === normalizedOwner ||
+      members.length <= 1
+    ) {
+      return;
     }
+    const filteredMembers = members.filter((_, i) => i !== index);
+    onChange?.(filteredMembers);
   };
 
   return (
@@ -144,7 +184,13 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
                 updateMember(index, 'address', newAddress)
               }
               placeholder="0x... or name.eth"
+              disabled={member.address.toLowerCase() === normalizedOwner}
             />
+            {member.address.toLowerCase() === normalizedOwner && (
+              <Text size="xs" c="gray.6" mt={4}>
+                Owner (read-only)
+              </Text>
+            )}
           </Box>
           <Group gap={48} ml="auto">
             <Box
@@ -159,6 +205,7 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
                     event.currentTarget.checked,
                   )
                 }
+                disabled={member.address.toLowerCase() === normalizedOwner}
               />
             </Box>
             <Box
@@ -173,6 +220,7 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
                     event.currentTarget.checked,
                   )
                 }
+                disabled={member.address.toLowerCase() === normalizedOwner}
               />
             </Box>
             <Box
@@ -183,6 +231,7 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
                 onChange={(event) =>
                   updateMember(index, 'isAdmin', event.currentTarget.checked)
                 }
+                disabled={member.address.toLowerCase() === normalizedOwner}
               />
             </Box>
           </Group>
@@ -190,7 +239,10 @@ function MemberManagement({ value = [], onChange }: MemberManagementProps) {
             color="red"
             variant="light"
             onClick={() => removeMember(index)}
-            disabled={members.length === 1}
+            disabled={
+              members.length === 1 ||
+              member.address.toLowerCase() === normalizedOwner
+            }
             style={{ marginLeft: 8 }}
           >
             <IconTrash size={16} />

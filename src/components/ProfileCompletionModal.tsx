@@ -9,10 +9,13 @@ import {
   Group,
   Button,
   Alert,
+  Box,
 } from '@mantine/core';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { trpc } from '@/utils/trpc';
+import { ImageUpload } from './ImageUpload';
+import { broadcastProfileUpdated } from '@/utils/profileEvents';
 
 const SOCIAL_FIELDS = [
   {
@@ -37,31 +40,30 @@ const SOCIAL_FIELDS = [
   },
 ];
 
+export type ProfileUser = {
+  id: string;
+  walletAddress: string;
+  ensName?: string | null;
+  name?: string | null;
+  avatar?: string | null;
+  bio?: string | null;
+  links?: Record<string, string> | null;
+};
+
 type ProfileCompletionModalProps = {
   opened: boolean;
   onClose: () => void;
-  user?: {
-    id: string;
-    walletAddress: string;
-    ensName?: string | null;
-    name?: string | null;
-    avatar?: string | null;
-    bio?: string | null;
-    links?: Record<string, string> | null;
-  };
-  onProfileUpdated?: (_updated: {
-    id: string;
-    walletAddress: string;
-    name?: string | null;
-    avatar?: string | null;
-    bio?: string | null;
-    links?: Record<string, string> | null;
-  }) => void;
+  mode?: 'onboarding' | 'edit';
+  profileIdentifier?: string;
+  user?: ProfileUser;
+  onProfileUpdated?: (_updated: ProfileUser) => void;
 };
 
 export function ProfileCompletionModal({
   opened,
   onClose,
+  mode = 'onboarding',
+  profileIdentifier,
   user,
   onProfileUpdated,
 }: ProfileCompletionModalProps) {
@@ -71,6 +73,8 @@ export function ProfileCompletionModal({
   const [bio, setBio] = useState(user?.bio || '');
   const [linkValues, setLinkValues] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const isEditMode = mode === 'edit';
 
   useEffect(() => {
     if (!opened) return;
@@ -80,34 +84,59 @@ export function ProfileCompletionModal({
     const defaults = SOCIAL_FIELDS.reduce(
       (acc, field) => ({
         ...acc,
-        [field.key]: user?.links?.[field.key] || '',
+        [field.key]:
+          typeof user?.links?.[field.key] === 'string'
+            ? (user?.links?.[field.key] as string)
+            : '',
       }),
       {} as Record<string, string>,
     );
-    setLinkValues({
-      ...defaults,
-      ...(user?.links || {}),
-    });
+    setLinkValues(defaults);
     setFormError(null);
+    setAvatarError(null);
   }, [opened, user]);
 
   const cleanedLinks = useMemo(() => {
     return Object.fromEntries(
-      Object.entries(linkValues || {}).filter(([, value]) => value.trim()),
+      Object.entries(linkValues || {}).filter(
+        ([, value]) => typeof value === 'string' && value.trim(),
+      ),
     );
   }, [linkValues]);
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
     onSuccess: async (data) => {
-      await Promise.all([
+      patchPublicProfileCache(data.user);
+      onProfileUpdated?.(data.user);
+      broadcastProfileUpdated({ user: data.user });
+      setFormError(null);
+
+      const invalidations: Array<Promise<unknown>> = [
         utils.user.getProfileCompletionStatus.invalidate(),
         utils.user.getProfileStats.invalidate({ userId: data.user.id }),
         utils.user.getPublicProfile.invalidate({
           addressOrEns: data.user.walletAddress,
         }),
-      ]);
-      onProfileUpdated?.(data.user);
-      setFormError(null);
+        utils.user.getPublicProfile.invalidate(),
+      ];
+
+      if (data.user.ensName) {
+        invalidations.push(
+          utils.user.getPublicProfile.invalidate({
+            addressOrEns: data.user.ensName,
+          }),
+        );
+      }
+
+      if (profileIdentifier && profileIdentifier.trim().length > 0) {
+        invalidations.push(
+          utils.user.getPublicProfile.invalidate({
+            addressOrEns: profileIdentifier,
+          }),
+        );
+      }
+
+      await Promise.all(invalidations);
       onClose();
     },
     onError: (error) => {
@@ -125,11 +154,12 @@ export function ProfileCompletionModal({
 
   const handleSave = () => {
     setFormError(null);
+    setAvatarError(null);
     const trimmedName = name.trim();
     const trimmedAvatar = avatar.trim();
 
     if (!trimmedAvatar) {
-      setFormError('Please provide an avatar URL.');
+      setAvatarError('Please upload an avatar image.');
       return;
     }
 
@@ -150,21 +180,58 @@ export function ProfileCompletionModal({
     dismissPromptMutation.mutate();
   };
 
+  const handleAvatarChange = (url: string | null) => {
+    setAvatar(url || '');
+    setAvatarError(null);
+  };
+
+  const patchPublicProfileCache = (nextUser: ProfileUser) => {
+    const identifiers = Array.from(
+      new Set(
+        [
+          nextUser.walletAddress,
+          nextUser.ensName ?? undefined,
+          profileIdentifier,
+        ].filter(
+          (identifier): identifier is string =>
+            !!identifier && identifier.trim().length > 0,
+        ),
+      ),
+    );
+
+    identifiers.forEach((identifier) => {
+      utils.user.getPublicProfile.setData(
+        { addressOrEns: identifier },
+        (previous) =>
+          previous
+            ? {
+                ...previous,
+                user: {
+                  ...previous.user,
+                  ...nextUser,
+                },
+              }
+            : previous,
+      );
+    });
+  };
+
   return (
     <Modal
       opened={opened}
-      onClose={() => {}}
-      withCloseButton={false}
-      closeOnClickOutside={false}
-      closeOnEscape={false}
-      title="Complete your profile"
+      onClose={isEditMode ? onClose : () => {}}
+      withCloseButton={isEditMode}
+      closeOnClickOutside={isEditMode}
+      closeOnEscape={isEditMode}
+      title={isEditMode ? 'Edit your profile' : 'Complete your profile'}
       size="lg"
       radius="lg"
     >
       <Stack gap={16}>
         <Text c="dimmed">
-          Add a display name and avatar so projects can recognize you across the
-          ecosystem.
+          {isEditMode
+            ? 'Keep your profile details up to date so projects can recognize you.'
+            : 'Add a display name and avatar so projects can recognize you across the ecosystem.'}
         </Text>
 
         {formError && (
@@ -173,20 +240,31 @@ export function ProfileCompletionModal({
           </Alert>
         )}
 
+        <Box>
+          <Stack gap={8} align="center">
+            <ImageUpload
+              value={avatar}
+              onChange={handleAvatarChange}
+              size={140}
+              placeholder="Upload your avatar"
+              error={avatarError || undefined}
+              variant="circle"
+            />
+            <Text size="sm" c="dimmed">
+              Use a clear image at least 240px to avoid blurring.
+            </Text>
+          </Stack>
+        </Box>
+
         <TextInput
           label="Display name"
           placeholder="e.g. Bruce"
           value={name}
-          onChange={(event) => setName(event.currentTarget.value)}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setName(value);
+          }}
           autoFocus
-        />
-
-        <TextInput
-          label="Avatar URL"
-          placeholder="https://..."
-          value={avatar}
-          onChange={(event) => setAvatar(event.currentTarget.value)}
-          required
         />
 
         <Textarea
@@ -194,7 +272,10 @@ export function ProfileCompletionModal({
           placeholder="Tell the community about your focus areas..."
           minRows={3}
           value={bio}
-          onChange={(event) => setBio(event.currentTarget.value)}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setBio(value);
+          }}
         />
 
         <Stack gap={8}>
@@ -207,12 +288,13 @@ export function ProfileCompletionModal({
               label={field.label}
               placeholder={field.placeholder}
               value={linkValues[field.key] || ''}
-              onChange={(event) =>
+              onChange={(event) => {
+                const value = event.currentTarget.value;
                 setLinkValues((prev) => ({
                   ...prev,
-                  [field.key]: event.currentTarget.value,
-                }))
-              }
+                  [field.key]: value,
+                }));
+              }}
             />
           ))}
         </Stack>
@@ -221,18 +303,18 @@ export function ProfileCompletionModal({
           <Button
             variant="subtle"
             color="gray"
-            onClick={handleSkip}
+            onClick={isEditMode ? onClose : handleSkip}
             disabled={updateProfileMutation.isPending}
-            loading={dismissPromptMutation.isPending}
+            loading={!isEditMode && dismissPromptMutation.isPending}
           >
-            Not now
+            {isEditMode ? 'Cancel' : 'Not now'}
           </Button>
           <Button
             onClick={handleSave}
             loading={updateProfileMutation.isPending}
             disabled={updateProfileMutation.isPending}
           >
-            Save & Continue
+            {isEditMode ? 'Save changes' : 'Save & Continue'}
           </Button>
         </Group>
       </Stack>

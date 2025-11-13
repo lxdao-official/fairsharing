@@ -6,7 +6,7 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/utils/trpc';
 import { useAuth } from '@/hooks/useAuth';
-import { ProfileCompletionModal } from './ProfileCompletionModal';
+import { ProfileCompletionModal, type ProfileUser } from './ProfileCompletionModal';
 
 export function ConnectWallet() {
   const router = useRouter();
@@ -34,12 +34,7 @@ export function ConnectWallet() {
     }
   }, [profileStatusQuery.data?.shouldPrompt]);
 
-  const handleProfileUpdated = (updatedUser: {
-    id: string;
-    walletAddress: string;
-    name?: string | null;
-    avatar?: string | null;
-  }) => {
+  const handleProfileUpdated = (updatedUser: ProfileUser) => {
     if (!session) return;
     setSession({
       ...session,
@@ -153,6 +148,10 @@ export function ConnectWallet() {
       <ProfileCompletionModal
         opened={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+        profileIdentifier={
+          profileStatusQuery.data?.user.ensName ||
+          profileStatusQuery.data?.user.walletAddress
+        }
         user={
           profileStatusQuery.data?.user
             ? {

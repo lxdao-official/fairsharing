@@ -15,6 +15,7 @@ import {
   Tabs,
   Pagination,
   Alert,
+  Button,
 } from '@mantine/core';
 import {
   IconBrandTwitter,
@@ -25,13 +26,19 @@ import {
   IconCopy,
   IconInfoCircle,
 } from '@tabler/icons-react';
-import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { ProjectCard } from '@/components/ProjectCard';
 import { ContributionCard } from '@/components/ContributionCard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { trpc } from '@/utils/trpc';
+import {
+  ProfileCompletionModal,
+  type ProfileUser,
+} from '@/components/ProfileCompletionModal';
+import { useAuth } from '@/hooks/useAuth';
+import { subscribeToProfileUpdates } from '@/utils/profileEvents';
 
 type ContributionTab = 'all' | 'validating' | 'on-chain' | 'failed';
 
@@ -53,6 +60,8 @@ const linkIconMap: Record<string, typeof IconLink> = {
   website: IconLink,
 };
 
+type UpdatedUserPayload = ProfileUser;
+
 function shortenAddress(address?: string) {
   if (!address) return '';
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -64,7 +73,11 @@ export default function UserPage() {
   const [activeContributionTab, setActiveContributionTab] =
     useState<ContributionTab>('all');
   const [currentContributionPage, setCurrentContributionPage] = useState(1);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const itemsPerPage = 6;
+  const { session, setSession } = useAuth();
+  const router = useRouter();
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     setCurrentContributionPage(1);
@@ -139,6 +152,82 @@ export default function UserPage() {
     [contributionsList],
   );
 
+  const canEditProfile = Boolean(user && session?.user?.id === user.id);
+
+  const updateCachedProfile = useCallback(
+    (nextUser: UpdatedUserPayload) => {
+      const identifiers = Array.from(
+        new Set(
+          [
+            identifier,
+            nextUser.walletAddress,
+            nextUser.ensName ?? undefined,
+          ].filter(
+            (value): value is string =>
+              !!value && value.trim().length > 0,
+          ),
+        ),
+      );
+
+      identifiers.forEach((value) => {
+        utils.user.getPublicProfile.setData(
+          { addressOrEns: value },
+          (previous) =>
+            previous
+              ? {
+                  ...previous,
+                  user: {
+                    ...previous.user,
+                    ...nextUser,
+                  },
+                }
+              : previous,
+        );
+      });
+    },
+    [identifier, utils],
+  );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsubscribe = subscribeToProfileUpdates(({ user: updatedUser }) => {
+      if (updatedUser.id !== user.id) return;
+      updateCachedProfile(updatedUser);
+
+      const invalidations: Array<Promise<unknown>> = [
+        utils.user.getPublicProfile.invalidate({ addressOrEns: updatedUser.walletAddress }),
+        utils.user.getPublicProfile.invalidate(),
+      ];
+
+      if (updatedUser.ensName) {
+        invalidations.push(
+          utils.user.getPublicProfile.invalidate({
+            addressOrEns: updatedUser.ensName,
+          }),
+        );
+      }
+
+      if (identifier) {
+        invalidations.push(
+          utils.user.getPublicProfile.invalidate({
+            addressOrEns: identifier,
+          }),
+        );
+      }
+
+      if (userId) {
+        invalidations.push(
+          utils.user.getProfileStats.invalidate({ userId }),
+        );
+      }
+
+      Promise.all(invalidations).catch((error) => {
+        console.error('Failed to refresh profile after broadcast', error);
+      });
+    });
+    return unsubscribe;
+  }, [identifier, updateCachedProfile, user?.id, userId, utils]);
+
   if (!identifier) {
     return (
       <Layout>
@@ -184,6 +273,56 @@ export default function UserPage() {
       </Layout>
     );
   }
+
+  const handleProfileUpdated = (updatedUser: UpdatedUserPayload) => {
+    if (!session) return;
+    setSession({
+      ...session,
+      user: {
+        ...session.user,
+        name: updatedUser.name ?? session.user.name,
+        avatar: updatedUser.avatar ?? session.user.avatar,
+      },
+    });
+    updateCachedProfile(updatedUser);
+
+    const invalidations: Array<Promise<unknown>> = [];
+
+    if (identifier) {
+      invalidations.push(
+        utils.user.getPublicProfile.invalidate({
+          addressOrEns: identifier,
+        }),
+      );
+    }
+
+    invalidations.push(
+      utils.user.getPublicProfile.invalidate({
+        addressOrEns: updatedUser.walletAddress,
+      }),
+      utils.user.getPublicProfile.invalidate(),
+    );
+
+    if (updatedUser.ensName) {
+      invalidations.push(
+        utils.user.getPublicProfile.invalidate({
+          addressOrEns: updatedUser.ensName,
+        }),
+      );
+    }
+
+    if (userId) {
+      invalidations.push(
+        utils.user.getProfileStats.invalidate({ userId }),
+      );
+    }
+
+    Promise.all(invalidations).catch((error) =>
+      console.error('Failed to refresh profile after edit', error),
+    );
+
+    router.refresh();
+  };
 
   return (
     <Layout>
@@ -286,27 +425,38 @@ export default function UserPage() {
           <Box style={{ flex: 1 }}>
             <Stack gap={32}>
               <Box mt={24}>
-                <Stack gap={24} align="left">
-                  <Stack gap={8}>
-                    <Title order={1} size={32} fw={700}>
-                      {displayName}
-                    </Title>
-                    <Group gap={8}>
-                      <Text size="sm" c="gray.6" ff="monospace">
-                        {shortenAddress(user.walletAddress)}
-                      </Text>
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size="xs"
-                        onClick={() =>
-                          navigator.clipboard.writeText(user.walletAddress)
-                        }
+                <Stack gap={24}>
+                  <Group justify="space-between" align="flex-start">
+                    <Stack gap={8}>
+                      <Title order={1} size={32} fw={700}>
+                        {displayName}
+                      </Title>
+                      <Group gap={8}>
+                        <Text size="sm" c="gray.6" ff="monospace">
+                          {shortenAddress(user.walletAddress)}
+                        </Text>
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size="xs"
+                          onClick={() =>
+                            navigator.clipboard.writeText(user.walletAddress)
+                          }
+                        >
+                          <IconCopy size={12} />
+                        </ActionIcon>
+                      </Group>
+                    </Stack>
+                    {canEditProfile && (
+                      <Button
+                        variant="light"
+                        size="sm"
+                        onClick={() => setIsEditModalOpen(true)}
                       >
-                        <IconCopy size={12} />
-                      </ActionIcon>
-                    </Group>
-                  </Stack>
+                        Edit profile
+                      </Button>
+                    )}
+                  </Group>
 
                   <Group gap={32} wrap="wrap" justify="flex-start">
                     <Stack gap={4}>
@@ -497,6 +647,27 @@ export default function UserPage() {
           </Box>
         </Group>
       </Container>
+
+      <ProfileCompletionModal
+        opened={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        mode="edit"
+        profileIdentifier={identifier}
+        user={
+          canEditProfile
+            ? {
+                id: user.id,
+                walletAddress: user.walletAddress,
+                ensName: user.ensName,
+                name: user.name,
+                avatar: user.avatar,
+                bio: user.bio,
+                links: user.links,
+              }
+            : undefined
+        }
+        onProfileUpdated={handleProfileUpdated}
+      />
     </Layout>
   );
 }

@@ -241,4 +241,156 @@ export const userRouter = createTRPCRouter({
 
       return memberships;
     }),
+
+  // Get projects for sidebar (owned, member, contributor)
+  getSidebarProjects: protectedProcedure
+    .input(
+      z
+        .object({
+          limitOwned: z.number().min(1).max(50).optional(),
+          limitMember: z.number().min(1).max(50).optional(),
+          limitContributor: z.number().min(1).max(50).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.user?.id;
+      if (!userId) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'User not authenticated',
+        });
+      }
+
+      const limitOwned = input?.limitOwned ?? 20;
+      const limitMember = input?.limitMember ?? 20;
+      const limitContributor = input?.limitContributor ?? 20;
+
+      type SidebarProject = {
+        id: string;
+        key: string;
+        name: string;
+        logo: string | null;
+      };
+
+      const projectSelect = {
+        id: true,
+        key: true,
+        name: true,
+        logo: true,
+      };
+
+      // Owned projects (highest priority)
+      const ownedProjects = await db.project.findMany({
+        where: {
+          ownerId: userId,
+          deletedAt: null,
+          status: ProjectStatus.ACTIVE,
+        },
+        select: projectSelect,
+        orderBy: { createdAt: 'desc' },
+        take: limitOwned,
+      });
+
+      const ownedProjectIds = new Set(ownedProjects.map((project) => project.id));
+
+      // Member projects (exclude owned)
+      const memberProjects = await db.project.findMany({
+        where: {
+          ownerId: { not: userId },
+          deletedAt: null,
+          status: ProjectStatus.ACTIVE,
+          members: {
+            some: {
+              userId,
+              deletedAt: null,
+            },
+          },
+        },
+        select: projectSelect,
+        orderBy: { createdAt: 'desc' },
+        take: limitMember * 2, // fetch extra to account for duplicates
+      });
+
+      const filteredMemberProjects = memberProjects.filter((project) => {
+        if (ownedProjectIds.has(project.id)) {
+          return false;
+        }
+        return true;
+      });
+
+      const memberProjectIds = new Set(filteredMemberProjects.map((project) => project.id));
+
+      const finalMemberProjects = filteredMemberProjects.slice(0, limitMember);
+
+      // Contributor projects (exclude owned & member) using latest contribution ordering
+      const contributions = await db.contribution.findMany({
+        where: {
+          deletedAt: null,
+          contributors: {
+            some: {
+              contributorId: userId,
+              deletedAt: null,
+            },
+          },
+          project: {
+            deletedAt: null,
+            status: ProjectStatus.ACTIVE,
+          },
+        },
+        select: {
+          projectId: true,
+          createdAt: true,
+          project: {
+            select: {
+              id: true,
+              key: true,
+              name: true,
+              logo: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limitContributor * 10, // grab extras to ensure enough unique projects
+      });
+
+      const contributorProjects: {
+        project: SidebarProject;
+        lastContributionAt: Date;
+      }[] = [];
+
+      const contributorSeen = new Set<string>();
+
+      for (const contribution of contributions) {
+        const project = contribution.project;
+        if (!project) continue;
+
+        if (
+          ownedProjectIds.has(project.id) ||
+          memberProjectIds.has(project.id) ||
+          contributorSeen.has(project.id)
+        ) {
+          continue;
+        }
+
+        contributorSeen.add(project.id);
+        contributorProjects.push({
+          project,
+          lastContributionAt: contribution.createdAt,
+        });
+
+        if (contributorProjects.length >= limitContributor) {
+          break;
+        }
+      }
+
+      return {
+        owned: ownedProjects,
+        member: finalMemberProjects,
+        contributor: contributorProjects.map(({ project, lastContributionAt }) => ({
+          ...project,
+          lastContributionAt,
+        })),
+      };
+    }),
 });

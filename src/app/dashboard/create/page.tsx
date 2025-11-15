@@ -6,24 +6,21 @@ import {
   Title,
   Group,
   Text,
-  TextInput,
   Stack,
   AppShell,
-  Textarea,
   Box,
   Button,
-  NumberInput,
   Alert,
   Modal,
 } from '@mantine/core';
-import { ValidateCardSelect } from '@/components/ValidateCardSelect';
-import { SubmitterCardSelect } from '@/components/SubmitterCardSelect';
-import { ValidationStrategySelect } from '@/components/ValidationStrategySelect';
-import MemberManagement from '@/components/MemberManagement';
-import OtherLinksManagement from '@/components/OtherLinksManagement';
-import { ImageUpload } from '@/components/ImageUpload';
-import { AddressInput } from '@/components/AddressInput';
-import { useForm, Controller } from 'react-hook-form';
+import {
+  ProjectBasicInfoFields,
+  ProjectLinksFields,
+  ProjectSubmissionSettingsFields,
+  ProjectTeamFields,
+  ProjectValidationSettingsFields,
+} from '@/components/ProjectFormSections';
+import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { createProjectSchema } from '@/lib/validations/project';
 import { CreateProjectFormData } from '@/types/project';
@@ -66,9 +63,6 @@ export default function CreateProjectPage() {
       otherLinks: [],
     },
   });
-
-  const tokenName = watch('tokenName') || 'TOKEN_NAME';
-  const validateType = watch('validateType');
 
   // Set project owner to current wallet address when available
   useEffect(() => {
@@ -174,276 +168,25 @@ export default function CreateProjectPage() {
             <Group align="flex-start" gap={48}>
               <Title order={2}>Project Information</Title>
               <Stack style={{ flex: 1, maxWidth: 785 }}>
-                {/* Project Logo Upload */}
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={4}>
-                    Project Logo
-                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                  </Text>
-                  <Text
-                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
-                  >
-                    Upload a square logo for your project (recommended size:
-                    200x200px)
-                  </Text>
-                  <Controller
-                    name="logo"
-                    control={control}
-                    render={({
-                      field: { value, onChange },
-                      fieldState: { error },
-                    }) => (
-                      <ImageUpload
-                        value={value}
-                        onChange={onChange}
-                        size={200}
-                        placeholder="Upload project logo"
-                        error={error?.message}
-                      />
-                    )}
-                  />
-                </Box>
-
-                <Controller
-                  name="projectName"
+                <ProjectBasicInfoFields
                   control={control}
-                  render={({ field, fieldState: { error } }) => (
-                    <TextInput
-                      {...field}
-                      label={
-                        <span style={{ fontWeight: 700, fontSize: 16 }}>
-                          Project Name
-                        </span>
-                      }
-                      required
-                      placeholder="Enter project name"
-                      radius="sm"
-                      error={error?.message}
-                    />
-                  )}
+                  errors={errors}
+                  watch={watch}
+                  requireLogo
+                  logoDescription="Upload a square logo for your project (recommended size: 200x200px)"
                 />
 
-                <Controller
-                  name="description"
+                <ProjectValidationSettingsFields
                   control={control}
-                  render={({ field, fieldState: { error } }) => (
-                    <Textarea
-                      {...field}
-                      label={
-                        <span style={{ fontWeight: 700, fontSize: 16 }}>
-                          Description
-                        </span>
-                      }
-                      required
-                      description={
-                        <span style={{ color: '#6B7280', fontSize: 16 }}>
-                          No more than 150 characters
-                        </span>
-                      }
-                      placeholder="Describe your project..."
-                      minRows={5}
-                      maxRows={8}
-                      radius="sm"
-                      error={error?.message}
-                    />
-                  )}
+                  errors={errors}
+                  watch={watch}
                 />
 
-                <Controller
-                  name="tokenName"
+                <ProjectSubmissionSettingsFields
                   control={control}
-                  render={({ field, fieldState: { error } }) => (
-                    <TextInput
-                      {...field}
-                      onChange={(event) => {
-                        // 只允许英文字母和数字，自动转换为大写
-                        const value = event.currentTarget.value
-                          .replace(/[^A-Za-z0-9]/g, '')
-                          .toUpperCase();
-                        field.onChange(value);
-                      }}
-                      label={
-                        <span style={{ fontWeight: 700, fontSize: 16 }}>
-                          Token Name
-                        </span>
-                      }
-                      required
-                      description={
-                        <span style={{ color: '#6B7280', fontSize: 16 }}>
-                          Token representing contributions in your project
-                          (Only letters and numbers, automatically converted to uppercase)
-                        </span>
-                      }
-                      placeholder="TOKEN_NAME"
-                      radius="sm"
-                      styles={{
-                        input: {
-                          width: '160px',
-                        },
-                      }}
-                      error={error?.message}
-                    />
-                  )}
+                  errors={errors}
+                  watch={watch}
                 />
-
-                {/* Who can validate contributions? */}
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                    Who can validate contributions?
-                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                  </Text>
-                  <Text
-                    style={{
-                      color: '#6B7280',
-                      fontSize: 14,
-                      marginBottom: 8,
-                    }}
-                  >
-                    In FairSharing, contributions must be validated before
-                    they&apos;re recorded on-chain. Select who will have the
-                    authority to validate contributions for your project.
-                  </Text>
-                  <Controller
-                    name="validateType"
-                    control={control}
-                    render={({
-                      field: { value, onChange },
-                      fieldState: { error },
-                    }) => (
-                      <ValidateCardSelect
-                        value={value}
-                        onChange={onChange}
-                        error={error?.message}
-                      />
-                    )}
-                  />
-                </Box>
-
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                    Validation Approval Strategy
-                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                  </Text>
-                  <Text
-                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
-                  >
-                    If you need furthur customization, please contact the
-                    Fairsharing team.
-                  </Text>
-                  <Controller
-                    name="validationStrategy"
-                    control={control}
-                    render={({
-                      field: { value, onChange },
-                      fieldState: { error },
-                    }) => (
-                      <ValidationStrategySelect
-                        value={value}
-                        onChange={onChange}
-                        error={error?.message}
-                      />
-                    )}
-                  />
-                </Box>
-
-                {/* Validation Period - Only show when validateType is 'all' */}
-                {validateType === 'all' && (
-                  <Box>
-                    <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                      Validation Period
-                      <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                    </Text>
-                    <Text
-                      style={{
-                        color: '#6B7280',
-                        fontSize: 14,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Set to 0 for immediate validation (as soon as votes reach
-                      the threshold).
-                    </Text>
-                    <Group align="center" mt={8} mb={8}>
-                      <Controller
-                        name="validationPeriodDays"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                          <NumberInput
-                            {...field}
-                            placeholder="0"
-                            style={{ width: 100 }}
-                            radius="sm"
-                            size="sm"
-                            min={0}
-                            max={365}
-                            error={error?.message}
-                          />
-                        )}
-                      />
-                      <Text fw={800} style={{ color: '#6B7280' }}>
-                        Days
-                      </Text>
-                    </Group>
-                  </Box>
-                )}
-
-                {/* Who can submit contributions? */}
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }} mb={8}>
-                    Who can submit contributions?
-                    <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
-                  </Text>
-                  <Controller
-                    name="submitterType"
-                    control={control}
-                    render={({
-                      field: { value, onChange },
-                      fieldState: { error },
-                    }) => (
-                      <SubmitterCardSelect
-                        value={value}
-                        onChange={onChange}
-                        error={error?.message}
-                      />
-                    )}
-                  />
-                </Box>
-
-                {/* Default Hourly Pay */}
-                <Box>
-                  <Text style={{ fontWeight: 700, fontSize: 16 }}>
-                    Default Hourly Pay
-                  </Text>
-                  <Text
-                    style={{ color: '#6B7280', fontSize: 14, marginBottom: 8 }}
-                  >
-                    Used to calculate contribution value as &apos;hours worked ×
-                    hourly rate&apos;. You can later set custom rates for each
-                    contributor. If left blank or set to 0, contributors can
-                    claim tokens freely.
-                  </Text>
-                  <Group align="center" mt={8}>
-                    <Controller
-                      name="defaultHourlyPay"
-                      control={control}
-                      render={({ field, fieldState: { error } }) => (
-                        <NumberInput
-                          {...field}
-                          placeholder="0"
-                          style={{ width: 120 }}
-                          radius="sm"
-                          size="sm"
-                          min={0}
-                          max={10000}
-                          error={error?.message}
-                        />
-                      )}
-                    />
-                    <Text style={{ color: '#6B7280', fontWeight: 800 }}>
-                      {tokenName}/hour
-                    </Text>
-                  </Group>
-                </Box>
               </Stack>
             </Group>
             {/* Team Member Section */}
@@ -457,49 +200,11 @@ export default function CreateProjectPage() {
                 </Text>
               </Box>
               <Box style={{ flex: 1, maxWidth: 785 }}>
-                <Controller
-                  name="projectOwner"
+                <ProjectTeamFields
                   control={control}
-                  render={({
-                    field: { value, onChange },
-                    fieldState: { error },
-                  }) => (
-                    <AddressInput
-                      value={value}
-                      onChange={onChange}
-                      label={
-                        <span style={{ fontWeight: 700, fontSize: 16 }}>
-                          Project Owner (Wallet address or ENS)
-                          <span style={{ color: '#F43F5E', marginLeft: 4 }}>
-                            *
-                          </span>
-                        </span>
-                      }
-                      required
-                      description={
-                        <span style={{ color: '#6B7280', fontSize: 14 }}>
-                          Defaults to the project creator and with Admin
-                          permission.
-                        </span>
-                      }
-                      placeholder="0x123456... or username.eth"
-                      radius="sm"
-                      size="md"
-                      error={error?.message}
-                    />
-                  )}
+                  errors={errors}
+                  ownerAddress={watch('projectOwner')}
                 />
-
-                {/* Member Management */}
-                <Box mt={24}>
-                  <Controller
-                    name="members"
-                    control={control}
-                    render={({ field: { value, onChange } }) => (
-                      <MemberManagement value={value} onChange={onChange} />
-                    )}
-                  />
-                </Box>
               </Box>
             </Group>
 
@@ -514,13 +219,7 @@ export default function CreateProjectPage() {
                 </Text>
               </Box>
               <Box style={{ flex: 1, maxWidth: 785 }}>
-                <Controller
-                  name="otherLinks"
-                  control={control}
-                  render={({ field: { value, onChange } }) => (
-                    <OtherLinksManagement value={value} onChange={onChange} />
-                  )}
-                />
+                <ProjectLinksFields control={control} />
               </Box>
             </Group>
 

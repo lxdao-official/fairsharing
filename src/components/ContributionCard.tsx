@@ -27,6 +27,7 @@ import { ContributionForm } from './ContributionForm';
 import { trpc } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
 import { useUserProjects } from '@/hooks/useUserProjects';
+import { useAccount, useChainId, useSignMessage } from 'wagmi';
 
 interface ContributionData {
   id: string;
@@ -73,6 +74,9 @@ export function ContributionCard({
   const { user } = useUser();
   const { isValidatorForProject } = useUserProjects();
   const utils = trpc.useUtils();
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
 
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
@@ -259,8 +263,30 @@ export function ContributionCard({
     }
   };
 
+  const buildVoteSignatureMessage = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
+    const timestamp = new Date().toISOString();
+    const nonce =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+
+    const payload = {
+      app: 'FairSharing',
+      action: 'ContributionVote',
+      projectId,
+      contributionId: contribution.id,
+      voteType,
+      voterAddress: address,
+      timestamp,
+      nonce,
+      chainId,
+    };
+
+    return `FairSharing Contribution Vote\n${JSON.stringify(payload, null, 2)}`;
+  };
+
   // Handle vote
-  const handleVote = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
+  const handleVote = async (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
     if (
       contribution.status !== 'VALIDATING' ||
       !user ||
@@ -274,12 +300,29 @@ export function ContributionCard({
     // If user already voted with same type, remove vote
     if (userVote?.type === voteType) {
       deleteVote.mutate({ contributionId: contribution.id });
-    } else {
-      // Create or update vote
+      return;
+    }
+
+    if (!address) {
+      setVoteLoading(false);
+      return;
+    }
+
+    try {
+      const signatureMessage = buildVoteSignatureMessage(voteType);
+      const signature = await signMessageAsync({
+        message: signatureMessage,
+      });
+
       createVote.mutate({
         contributionId: contribution.id,
         type: voteType,
+        signature,
+        signatureMessage,
+        chainId: (chainId ?? 0).toString(),
       });
+    } catch {
+      setVoteLoading(false);
     }
   };
 
@@ -392,7 +435,7 @@ export function ContributionCard({
                 <>
                   <Box
                     style={getVoteItemStyle('PASS', userVote?.type === 'PASS')}
-                    onClick={() => handleVote('PASS')}
+                    onClick={() => void handleVote('PASS')}
                   >
                     <IconCheck size={14} />
                     <Text size="sm" fw={500}>
@@ -401,7 +444,7 @@ export function ContributionCard({
                   </Box>
                   <Box
                     style={getVoteItemStyle('FAIL', userVote?.type === 'FAIL')}
-                    onClick={() => handleVote('FAIL')}
+                    onClick={() => void handleVote('FAIL')}
                   >
                     <IconX size={14} />
                     <Text size="sm" fw={500}>
@@ -410,7 +453,7 @@ export function ContributionCard({
                   </Box>
                   <Box
                     style={getVoteItemStyle('SKIP', userVote?.type === 'SKIP')}
-                    onClick={() => handleVote('SKIP')}
+                    onClick={() => void handleVote('SKIP')}
                   >
                     <IconMinus size={14} />
                     <Text size="sm" fw={500}>

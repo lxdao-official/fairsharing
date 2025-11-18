@@ -11,15 +11,25 @@ import {
 } from '@prisma/client';
 
 // Input validation schemas
-const createVoteSchema = z.object({
-  contributionId: z.string().cuid(),
-  type: z.enum(['PASS', 'FAIL', 'SKIP']),
+const voteSignatureSchema = z.object({
+  signature: z.string().min(1, 'Signature is required'),
+  signatureMessage: z.string().min(1, 'Signature message is required'),
+  chainId: z.string().min(1, 'Chain ID is required'),
 });
 
-const updateVoteSchema = z.object({
-  contributionId: z.string().cuid(),
-  type: z.enum(['PASS', 'FAIL', 'SKIP']),
-});
+const createVoteSchema = z
+  .object({
+    contributionId: z.string().cuid(),
+    type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  })
+  .merge(voteSignatureSchema);
+
+const updateVoteSchema = z
+  .object({
+    contributionId: z.string().cuid(),
+    type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  })
+  .merge(voteSignatureSchema);
 
 const getVotesSchema = z.object({
   contributionId: z.string().cuid(),
@@ -30,13 +40,113 @@ const getMyVotesSchema = z.object({
 });
 
 // Interface for future blockchain integration
+type VoteSignaturePayload = {
+  voteId: string;
+  voterId: string;
+  walletAddress: string;
+  signature: string;
+  signatureMessage: string;
+  chainId: string | null;
+  createdAt: Date;
+};
+
 interface BlockchainVotingService {
-  submitVotingResult(contributionId: string, passed: boolean, votes: any): Promise<string>;
+  submitVotingResult(
+    contributionId: string,
+    passed: boolean,
+    votes: VoteSignaturePayload[],
+  ): Promise<string>;
   getVotingStatus(contributionId: string): Promise<any>;
 }
 
-// Placeholder for blockchain service - will be implemented later
-const blockchainService: BlockchainVotingService | null = null;
+// Placeholder blockchain service - logs payloads for now
+const blockchainService: BlockchainVotingService = {
+  async submitVotingResult(contributionId, passed, votes) {
+    console.log(
+      '[OnChainVoting] Prepared payload',
+      JSON.stringify(
+        {
+          contributionId,
+          passed,
+          voteCount: votes.length,
+          votes: votes.map((vote) => ({
+            voteId: vote.voteId,
+            voterId: vote.voterId,
+            walletAddress: vote.walletAddress,
+            chainId: vote.chainId,
+            signature: vote.signature,
+            signatureMessage: vote.signatureMessage,
+            createdAt: vote.createdAt.toISOString(),
+          })),
+        },
+        null,
+        2,
+      ),
+    );
+    return `mock-tx-${Date.now()}`;
+  },
+  async getVotingStatus(contributionId) {
+    console.log('[OnChainVoting] Status requested for', contributionId);
+    return { status: 'SIMULATED' };
+  },
+};
+
+async function collectPassVoteSignatures(contributionId: string): Promise<VoteSignaturePayload[]> {
+  const votes = await db.vote.findMany({
+    where: {
+      contributionId,
+      deletedAt: null,
+      type: VoteType.PASS,
+    },
+    include: {
+      voter: {
+        select: {
+          walletAddress: true,
+        },
+      },
+    },
+  });
+
+  const missingSignatureVotes = votes.filter(
+    vote => !vote.signature || !vote.signatureMessage,
+  );
+
+  if (missingSignatureVotes.length) {
+    console.warn('[OnChainVoting] Missing signatures for votes', {
+      contributionId,
+      voteIds: missingSignatureVotes.map(vote => vote.id),
+    });
+  }
+
+  return votes
+    .filter(vote => vote.signature && vote.signatureMessage)
+    .map(vote => ({
+      voteId: vote.id,
+      voterId: vote.voterId,
+      walletAddress: vote.voter.walletAddress,
+      signature: vote.signature as string,
+      signatureMessage: vote.signatureMessage as string,
+      chainId: vote.signatureChainId,
+      createdAt: vote.createdAt,
+    }));
+}
+
+async function finalizeVotes(voteIds: string[]) {
+  if (!voteIds.length) {
+    return;
+  }
+
+  await db.vote.updateMany({
+    where: {
+      id: {
+        in: voteIds,
+      },
+    },
+    data: {
+      finalizedAt: new Date(),
+    },
+  });
+}
 
 // Apply voting strategy and check if contribution should change status
 async function applyVotingStrategy(contributionId: string) {
@@ -88,15 +198,16 @@ async function applyVotingStrategy(contributionId: string) {
 
   // Apply different voting strategies
   switch (strategy) {
-    case 'simple': 
-      // Simple Majority: If more than 50% of the votes go to "Approve" (PASS)
-      const nonSkipVotes = totalVotes - skipVotes;
-      if (nonSkipVotes > 0) {
-        shouldPass = passVotes > nonSkipVotes / 2;
-        shouldFail = failVotes > nonSkipVotes / 2;
+    case 'simple': {
+      // Simple majority across eligible voters: approvals must exceed 50% of all eligible validators
+      if (eligibleVoters > 0) {
+        const approvalThreshold = eligibleVoters / 2;
+        shouldPass = passVotes > approvalThreshold;
+        shouldFail = failVotes > approvalThreshold;
         statusDetermined = shouldPass || shouldFail;
       }
       break;
+    }
 
     case 'quorum': 
       // Quorum + Majority: Currently disabled in frontend
@@ -113,21 +224,33 @@ async function applyVotingStrategy(contributionId: string) {
       // Future implementation would be whoever has most votes wins
       break;
 
-    default:
-      // Fallback to simple majority for unknown strategies
-      const defaultNonSkipVotes = totalVotes - skipVotes;
-      if (defaultNonSkipVotes > 0) {
-        shouldPass = passVotes > defaultNonSkipVotes / 2;
-        shouldFail = failVotes > defaultNonSkipVotes / 2;
+    default: {
+      // Fallback to simple majority across eligible voters
+      if (eligibleVoters > 0) {
+        const approvalThreshold = eligibleVoters / 2;
+        shouldPass = passVotes > approvalThreshold;
+        shouldFail = failVotes > approvalThreshold;
         statusDetermined = shouldPass || shouldFail;
       }
       break;
+    }
   }
 
   // Update contribution status if determined
   if (statusDetermined) {
     const newStatus = shouldPass ? ContributionStatus.PASSED : ContributionStatus.FAILED;
-    
+    let onChainVotes: VoteSignaturePayload[] = [];
+
+    if (shouldPass) {
+      onChainVotes = await collectPassVoteSignatures(contributionId);
+      if (!onChainVotes.length) {
+        console.warn(
+          '[OnChainVoting] Contribution reached threshold but no valid signatures found',
+          contributionId,
+        );
+      }
+    }
+
     // Log voting result for debugging
     console.log(`Voting result for contribution ${contributionId}:`, {
       strategy,
@@ -149,16 +272,9 @@ async function applyVotingStrategy(contributionId: string) {
       },
     });
 
-    // Prepare for future blockchain integration
-    if (blockchainService) {
-      // This will be implemented when blockchain integration is ready
-      // await blockchainService.submitVotingResult(contributionId, shouldPass, {
-      //   passVotes,
-      //   failVotes,
-      //   skipVotes,
-      //   totalVotes,
-      //   eligibleVoters,
-      // });
+    if (shouldPass && onChainVotes.length) {
+      await blockchainService.submitVotingResult(contributionId, shouldPass, onChainVotes);
+      await finalizeVotes(onChainVotes.map(vote => vote.voteId));
     }
   }
 }
@@ -252,6 +368,11 @@ export const voteRouter = createTRPCRouter({
       try {
         // Check voting permissions
         await checkVotingPermissions(userId, input.contributionId);
+        const signatureData = {
+          signature: input.signature,
+          signatureMessage: input.signatureMessage,
+          signatureChainId: input.chainId,
+        };
 
         // Check if user has already voted
         const existingVote = await db.vote.findUnique({
@@ -272,7 +393,9 @@ export const voteRouter = createTRPCRouter({
               where: { id: existingVote.id },
               data: {
                 type: input.type as VoteType,
+                ...signatureData,
                 deletedAt: null,
+                finalizedAt: null,
                 updatedAt: new Date(),
               },
             });
@@ -282,6 +405,8 @@ export const voteRouter = createTRPCRouter({
               where: { id: existingVote.id },
               data: {
                 type: input.type as VoteType,
+                ...signatureData,
+                finalizedAt: null,
                 updatedAt: new Date(),
               },
             });
@@ -293,6 +418,7 @@ export const voteRouter = createTRPCRouter({
               type: input.type as VoteType,
               voterId: userId,
               contributionId: input.contributionId,
+              ...signatureData,
             },
           });
         }
@@ -328,7 +454,11 @@ export const voteRouter = createTRPCRouter({
           contributionId: input.contributionId,
           deletedAt: null,
         },
-        include: {
+        select: {
+          id: true,
+          type: true,
+          voterId: true,
+          finalizedAt: true,
           voter: {
             select: {
               id: true,
@@ -414,11 +544,22 @@ export const voteRouter = createTRPCRouter({
           });
         }
 
+        if (existingVote.finalizedAt) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Cannot remove a finalized vote',
+          });
+        }
+
         // Update vote
         const result = await db.vote.update({
           where: { id: existingVote.id },
           data: {
             type: input.type as VoteType,
+            signature: input.signature,
+            signatureMessage: input.signatureMessage,
+            signatureChainId: input.chainId,
+            finalizedAt: null,
             updatedAt: new Date(),
           },
         });

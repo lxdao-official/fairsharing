@@ -8,6 +8,15 @@ export const voteSchema = Yup.object({
   type: Yup.string()
     .oneOf(['PASS', 'FAIL', 'SKIP'], 'Invalid vote type')
     .required('Vote type is required'),
+
+  signature: Yup.string()
+    .required('Signature is required'),
+
+  signatureMessage: Yup.string()
+    .required('Signature message is required'),
+
+  chainId: Yup.string()
+    .required('Chain ID is required'),
 });
 
 export type VoteFormData = Yup.InferType<typeof voteSchema>;

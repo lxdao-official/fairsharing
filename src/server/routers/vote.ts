@@ -9,27 +9,39 @@ import {
   MemberRole,
   ContributionStatus,
 } from '@prisma/client';
+import { verifyEIP712Signature, normalizeAddress } from '@/lib/signatureVerification';
+import { getVoteTypeEnum } from '@/lib/eip712';
+import type { Address } from 'viem';
 
 // Input validation schemas
-const voteSignatureSchema = z.object({
-  signature: z.string().min(1, 'Signature is required'),
-  signatureMessage: z.string().min(1, 'Signature message is required'),
-  chainId: z.string().min(1, 'Chain ID is required'),
+const voteMessageSchema = z.object({
+  contributionId: z.string(),
+  projectId: z.string(),
+  voteType: z.number().min(1).max(3),
+  voter: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  timestamp: z.union([z.bigint(), z.number(), z.string()]).transform(val => {
+    if (typeof val === 'bigint') return val;
+    if (typeof val === 'number') return BigInt(val);
+    return BigInt(val);
+  }),
+  nonce: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
 });
 
-const createVoteSchema = z
-  .object({
-    contributionId: z.string().cuid(),
-    type: z.enum(['PASS', 'FAIL', 'SKIP']),
-  })
-  .merge(voteSignatureSchema);
+const createVoteSchema = z.object({
+  contributionId: z.string().cuid(),
+  type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  signature: z.string().regex(/^0x[a-fA-F0-9]{130}$/),
+  signaturePayload: voteMessageSchema,
+  chainId: z.string(),
+});
 
-const updateVoteSchema = z
-  .object({
-    contributionId: z.string().cuid(),
-    type: z.enum(['PASS', 'FAIL', 'SKIP']),
-  })
-  .merge(voteSignatureSchema);
+const updateVoteSchema = z.object({
+  contributionId: z.string().cuid(),
+  type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  signature: z.string().regex(/^0x[a-fA-F0-9]{130}$/),
+  signaturePayload: voteMessageSchema,
+  chainId: z.string(),
+});
 
 const getVotesSchema = z.object({
   contributionId: z.string().cuid(),
@@ -39,10 +51,10 @@ const getMyVotesSchema = z.object({
   projectId: z.string().cuid(),
 });
 
-// Interface for future blockchain integration
 type VoteSignaturePayload = {
   voteId: string;
   voterId: string;
+  type: VoteType;
   walletAddress: string;
   signature: string;
   signatureMessage: string;
@@ -50,53 +62,18 @@ type VoteSignaturePayload = {
   createdAt: Date;
 };
 
-interface BlockchainVotingService {
-  submitVotingResult(
-    contributionId: string,
-    passed: boolean,
-    votes: VoteSignaturePayload[],
-  ): Promise<string>;
-  getVotingStatus(contributionId: string): Promise<any>;
-}
-
-// Placeholder blockchain service - logs payloads for now
-const blockchainService: BlockchainVotingService = {
-  async submitVotingResult(contributionId, passed, votes) {
-    console.log(
-      '[OnChainVoting] Prepared payload',
-      JSON.stringify(
-        {
-          contributionId,
-          passed,
-          voteCount: votes.length,
-          votes: votes.map((vote) => ({
-            voteId: vote.voteId,
-            voterId: vote.voterId,
-            walletAddress: vote.walletAddress,
-            chainId: vote.chainId,
-            signature: vote.signature,
-            signatureMessage: vote.signatureMessage,
-            createdAt: vote.createdAt.toISOString(),
-          })),
-        },
-        null,
-        2,
-      ),
-    );
-    return `mock-tx-${Date.now()}`;
-  },
-  async getVotingStatus(contributionId) {
-    console.log('[OnChainVoting] Status requested for', contributionId);
-    return { status: 'SIMULATED' };
-  },
+type VotingDecision = {
+  justPassed: boolean;
+  finalStatus?: ContributionStatus;
 };
 
-async function collectPassVoteSignatures(contributionId: string): Promise<VoteSignaturePayload[]> {
+async function collectVoteSignatures(contributionId: string): Promise<VoteSignaturePayload[]> {
   const votes = await db.vote.findMany({
     where: {
       contributionId,
       deletedAt: null,
-      type: VoteType.PASS,
+      // 收集所有未软删的投票（无论 PASS/FAIL/SKIP），
+      // 方便后续在链上或其他策略中统一使用。
     },
     include: {
       voter: {
@@ -107,9 +84,7 @@ async function collectPassVoteSignatures(contributionId: string): Promise<VoteSi
     },
   });
 
-  const missingSignatureVotes = votes.filter(
-    vote => !vote.signature || !vote.signatureMessage,
-  );
+  const missingSignatureVotes = votes.filter(vote => !vote.signature || !vote.signatureMessage);
 
   if (missingSignatureVotes.length) {
     console.warn('[OnChainVoting] Missing signatures for votes', {
@@ -123,6 +98,7 @@ async function collectPassVoteSignatures(contributionId: string): Promise<VoteSi
     .map(vote => ({
       voteId: vote.id,
       voterId: vote.voterId,
+      type: vote.type,
       walletAddress: vote.voter.walletAddress,
       signature: vote.signature as string,
       signatureMessage: vote.signatureMessage as string,
@@ -131,25 +107,34 @@ async function collectPassVoteSignatures(contributionId: string): Promise<VoteSi
     }));
 }
 
-async function finalizeVotes(voteIds: string[]) {
-  if (!voteIds.length) {
-    return;
+function assertUserCanVerify(
+  userId: string,
+  project: {
+    validateType: ProjectValidateType;
+    members: { userId: string; role: MemberRole[] }[];
+  },
+) {
+  let canVerify = false;
+
+  if (project.validateType === ProjectValidateType.SPECIFIC_MEMBERS) {
+    canVerify = project.members.some(
+      member => member.userId === userId && member.role.includes(MemberRole.VALIDATOR),
+    );
+  } else {
+    canVerify = project.members.some(member => member.userId === userId);
   }
 
-  await db.vote.updateMany({
-    where: {
-      id: {
-        in: voteIds,
-      },
-    },
-    data: {
-      finalizedAt: new Date(),
-    },
-  });
+  if (!canVerify) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Only project validators can verify contributions on-chain',
+    });
+  }
 }
 
 // Apply voting strategy and check if contribution should change status
-async function applyVotingStrategy(contributionId: string) {
+async function applyVotingStrategy(contributionId: string): Promise<VotingDecision> {
+  const decision: VotingDecision = { justPassed: false };
   const contribution = await db.contribution.findUnique({
     where: { id: contributionId, deletedAt: null },
     include: {
@@ -169,7 +154,7 @@ async function applyVotingStrategy(contributionId: string) {
   });
 
   if (!contribution || contribution.status !== ContributionStatus.VALIDATING) {
-    return;
+    return decision;
   }
 
   const project = contribution.project;
@@ -239,17 +224,6 @@ async function applyVotingStrategy(contributionId: string) {
   // Update contribution status if determined
   if (statusDetermined) {
     const newStatus = shouldPass ? ContributionStatus.PASSED : ContributionStatus.FAILED;
-    let onChainVotes: VoteSignaturePayload[] = [];
-
-    if (shouldPass) {
-      onChainVotes = await collectPassVoteSignatures(contributionId);
-      if (!onChainVotes.length) {
-        console.warn(
-          '[OnChainVoting] Contribution reached threshold but no valid signatures found',
-          contributionId,
-        );
-      }
-    }
 
     // Log voting result for debugging
     console.log(`Voting result for contribution ${contributionId}:`, {
@@ -263,7 +237,7 @@ async function applyVotingStrategy(contributionId: string) {
       shouldPass,
       shouldFail,
     });
-    
+
     await db.contribution.update({
       where: { id: contributionId },
       data: {
@@ -272,11 +246,13 @@ async function applyVotingStrategy(contributionId: string) {
       },
     });
 
-    if (shouldPass && onChainVotes.length) {
-      await blockchainService.submitVotingResult(contributionId, shouldPass, onChainVotes);
-      await finalizeVotes(onChainVotes.map(vote => vote.voteId));
-    }
+    return {
+      justPassed: shouldPass,
+      finalStatus: newStatus,
+    };
   }
+
+  return decision;
 }
 
 // Helper function to check voting permissions
@@ -366,13 +342,64 @@ export const voteRouter = createTRPCRouter({
       const userId = (ctx as any).user?.id;
 
       try {
+        // Get user's wallet address
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { walletAddress: true },
+        });
+
+        if (!user) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'User not found',
+          });
+        }
+
+        // Verify EIP-712 signature
+        const verificationResult = await verifyEIP712Signature({
+          signature: input.signature as `0x${string}`,
+          message: {
+            ...input.signaturePayload,
+            voter: input.signaturePayload.voter as `0x${string}`,
+          },
+          expectedAddress: normalizeAddress(user.walletAddress) as Address,
+          chainId: parseInt(input.chainId, 10),
+        });
+
+        if (!verificationResult.valid) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: `Signature verification failed: ${verificationResult.error}`,
+          });
+        }
+
+        // Validate signature payload matches request
+        const payload = input.signaturePayload;
+
+        if (payload.contributionId !== input.contributionId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Contribution ID mismatch in signature payload',
+          });
+        }
+
+        const expectedVoteType = getVoteTypeEnum(input.type);
+        if (payload.voteType !== expectedVoteType) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Vote type mismatch in signature payload',
+          });
+        }
+
+        if (payload.voter.toLowerCase() !== user.walletAddress.toLowerCase()) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Voter address mismatch in signature payload',
+          });
+        }
+
         // Check voting permissions
         await checkVotingPermissions(userId, input.contributionId);
-        const signatureData = {
-          signature: input.signature,
-          signatureMessage: input.signatureMessage,
-          signatureChainId: input.chainId,
-        };
 
         // Check if user has already voted
         const existingVote = await db.vote.findUnique({
@@ -393,7 +420,9 @@ export const voteRouter = createTRPCRouter({
               where: { id: existingVote.id },
               data: {
                 type: input.type as VoteType,
-                ...signatureData,
+                signature: input.signature,
+                signaturePayload: input.signaturePayload,
+                signatureChainId: input.chainId,
                 deletedAt: null,
                 finalizedAt: null,
                 updatedAt: new Date(),
@@ -405,7 +434,9 @@ export const voteRouter = createTRPCRouter({
               where: { id: existingVote.id },
               data: {
                 type: input.type as VoteType,
-                ...signatureData,
+                signature: input.signature,
+                signaturePayload: input.signaturePayload,
+                signatureChainId: input.chainId,
                 finalizedAt: null,
                 updatedAt: new Date(),
               },
@@ -418,18 +449,21 @@ export const voteRouter = createTRPCRouter({
               type: input.type as VoteType,
               voterId: userId,
               contributionId: input.contributionId,
-              ...signatureData,
+              signature: input.signature,
+              signaturePayload: input.signaturePayload,
+              signatureChainId: input.chainId,
             },
           });
         }
 
         // Apply voting strategy to check if contribution status should change
-        await applyVotingStrategy(input.contributionId);
+        const decision = await applyVotingStrategy(input.contributionId);
 
         return {
           success: true,
           vote: result,
-          message: 'Vote submitted successfully',
+          message: 'Vote submitted and verified successfully',
+          decision,
         };
       } catch (error) {
         console.error('Error creating vote:', error);
@@ -524,6 +558,62 @@ export const voteRouter = createTRPCRouter({
       const userId = (ctx as any).user?.id;
 
       try {
+        // Get user's wallet address
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { walletAddress: true },
+        });
+
+        if (!user) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'User not found',
+          });
+        }
+
+        // Verify EIP-712 signature
+        const verificationResult = await verifyEIP712Signature({
+          signature: input.signature as `0x${string}`,
+          message: {
+            ...input.signaturePayload,
+            voter: input.signaturePayload.voter as `0x${string}`,
+          },
+          expectedAddress: normalizeAddress(user.walletAddress) as Address,
+          chainId: parseInt(input.chainId, 10),
+        });
+
+        if (!verificationResult.valid) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: `Signature verification failed: ${verificationResult.error}`,
+          });
+        }
+
+        // Validate signature payload matches request
+        const payload = input.signaturePayload;
+
+        if (payload.contributionId !== input.contributionId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Contribution ID mismatch in signature payload',
+          });
+        }
+
+        const expectedVoteType = getVoteTypeEnum(input.type);
+        if (payload.voteType !== expectedVoteType) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Vote type mismatch in signature payload',
+          });
+        }
+
+        if (payload.voter.toLowerCase() !== user.walletAddress.toLowerCase()) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Voter address mismatch in signature payload',
+          });
+        }
+
         // Check voting permissions
         await checkVotingPermissions(userId, input.contributionId);
 
@@ -547,7 +637,7 @@ export const voteRouter = createTRPCRouter({
         if (existingVote.finalizedAt) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: 'Cannot remove a finalized vote',
+            message: 'Cannot update a finalized vote',
           });
         }
 
@@ -557,17 +647,20 @@ export const voteRouter = createTRPCRouter({
           data: {
             type: input.type as VoteType,
             signature: input.signature,
-            signatureMessage: input.signatureMessage,
+            signaturePayload: input.signaturePayload,
             signatureChainId: input.chainId,
             finalizedAt: null,
             updatedAt: new Date(),
           },
         });
 
+        const decision = await applyVotingStrategy(input.contributionId);
+
         return {
           success: true,
           vote: result,
-          message: 'Vote updated successfully',
+          message: 'Vote updated and verified successfully',
+          decision,
         };
       } catch (error) {
         console.error('Error updating vote:', error);
@@ -645,6 +738,146 @@ export const voteRouter = createTRPCRouter({
           message: 'Failed to remove vote',
         });
       }
+    }),
+
+  // Prepare payload for on-chain verification
+  getOnChainPayload: protectedProcedure
+    .input(z.object({ contributionId: z.string().cuid() }))
+    .query(async ({ input, ctx }) => {
+      const userId = (ctx as any).user?.id;
+
+      const contribution = await db.contribution.findUnique({
+        where: { id: input.contributionId, deletedAt: null },
+        include: {
+          project: {
+            include: {
+              members: {
+                where: { deletedAt: null },
+                select: { userId: true, role: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!contribution) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Contribution not found',
+        });
+      }
+
+      if (contribution.status !== ContributionStatus.PASSED) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Contribution must be passed before preparing an on-chain payload',
+        });
+      }
+
+      assertUserCanVerify(userId, contribution.project);
+
+      const votes = await collectVoteSignatures(input.contributionId);
+
+      if (!votes.length) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'No signed votes available for on-chain verification',
+        });
+      }
+
+      const eligibleVoters =
+        contribution.project.validateType === ProjectValidateType.SPECIFIC_MEMBERS
+          ? contribution.project.members.filter(member => member.role.includes(MemberRole.VALIDATOR)).length
+          : contribution.project.members.length;
+
+      return {
+        project: {
+          id: contribution.project.id,
+          key: contribution.project.key,
+          name: contribution.project.name,
+          approvalStrategy: contribution.project.approvalStrategy,
+        },
+        contribution: {
+          id: contribution.id,
+          status: contribution.status,
+          projectId: contribution.projectId,
+        },
+        votes,
+        eligibleVoters,
+      };
+    }),
+
+  // Mark contribution as verified on-chain
+  confirmOnChain: protectedProcedure
+    .input(z.object({
+      contributionId: z.string().cuid(),
+      txHash: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).user?.id;
+
+      const contribution = await db.contribution.findUnique({
+        where: { id: input.contributionId, deletedAt: null },
+        include: {
+          project: {
+            include: {
+              members: {
+                where: { deletedAt: null },
+                select: { userId: true, role: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!contribution) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Contribution not found',
+        });
+      }
+
+      if (contribution.status !== ContributionStatus.PASSED) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Only passed contributions can be marked as on-chain',
+        });
+      }
+
+      assertUserCanVerify(userId, contribution.project);
+
+      await db.$transaction(async tx => {
+        await tx.contribution.update({
+          where: { id: input.contributionId },
+          data: {
+            status: ContributionStatus.ON_CHAIN,
+            updatedAt: new Date(),
+          },
+        });
+
+        await tx.vote.updateMany({
+          where: {
+            contributionId: input.contributionId,
+            deletedAt: null,
+          },
+          data: {
+            finalizedAt: new Date(),
+          },
+        });
+      });
+
+      if (input.txHash) {
+        console.log('[OnChainVoting] Contribution verified on-chain', {
+          contributionId: input.contributionId,
+          txHash: input.txHash,
+        });
+      }
+
+      return {
+        success: true,
+        message: 'Contribution recorded on-chain',
+        txHash: input.txHash,
+      };
     }),
 
   // Get voting statistics for a contribution

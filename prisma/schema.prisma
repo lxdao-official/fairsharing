@@ -168,18 +168,21 @@ enum ContributionStatus {
 //       Votes       //
 ///////////////////////
 model Vote {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   type           VoteType
   voterId        String
-  voter          User         @relation(fields: [voterId], references: [id])
+  voter          User          @relation(fields: [voterId], references: [id])
   contributionId String
-  contribution   Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
-  signature      String?
-  signatureMessage String?
-  signatureChainId String?
+  contribution   Contribution  @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+
+  // EIP-712 Signature fields
+  signature         String        // EIP-712 signature (0x...)
+  signaturePayload  Json          // EIP-712 structured data
+  signatureChainId  String        // Chain ID when signed
+
   finalizedAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
   @@unique([voterId, contributionId])

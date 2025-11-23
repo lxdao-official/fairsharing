@@ -24,10 +24,15 @@ import {
 } from '@tabler/icons-react';
 import { useState, useMemo } from 'react';
 import { ContributionForm } from './ContributionForm';
-import { trpc } from '@/utils/trpc';
+import { trpc, type RouterOutputs } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
 import { useUserProjects } from '@/hooks/useUserProjects';
-import { useAccount, useChainId, useSignMessage } from 'wagmi';
+import { useAccount, useChainId, useSignTypedData } from 'wagmi';
+import {
+  createVoteMessage,
+  getFairsharingDomain,
+  VOTE_TYPES,
+} from '@/lib/eip712';
 
 interface ContributionData {
   id: string;
@@ -63,6 +68,8 @@ interface ContributionCardProps {
   projectId: string;
 }
 
+type OnChainPayload = RouterOutputs['vote']['getOnChainPayload'];
+
 export function ContributionCard({
   contribution,
   projectId,
@@ -70,13 +77,15 @@ export function ContributionCard({
   const [isContentHovered, setIsContentHovered] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [voteLoading, setVoteLoading] = useState(false);
+  const [onChainProcessing, setOnChainProcessing] = useState(false);
+  const [onChainError, setOnChainError] = useState<string | null>(null);
 
   const { user } = useUser();
   const { isValidatorForProject } = useUserProjects();
   const utils = trpc.useUtils();
   const { address } = useAccount();
   const chainId = useChainId();
-  const { signMessageAsync } = useSignMessage();
+  const { signTypedDataAsync } = useSignTypedData();
 
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
@@ -100,9 +109,6 @@ export function ContributionCard({
       // Invalidate contribution list to refresh statuses
       utils.contribution.list.invalidate({ projectId });
     },
-    onSettled: () => {
-      setVoteLoading(false);
-    },
   });
 
   // Delete vote mutation
@@ -113,8 +119,13 @@ export function ContributionCard({
       // Invalidate contribution list to refresh statuses
       utils.contribution.list.invalidate({ projectId });
     },
-    onSettled: () => {
-      setVoteLoading(false);
+  });
+
+  // Confirm on-chain mutation
+  const confirmOnChain = trpc.vote.confirmOnChain.useMutation({
+    onSuccess: () => {
+      utils.vote.get.invalidate({ contributionId: contribution.id });
+      utils.contribution.list.invalidate({ projectId });
     },
   });
 
@@ -263,26 +274,42 @@ export function ContributionCard({
     }
   };
 
-  const buildVoteSignatureMessage = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
-    const timestamp = new Date().toISOString();
-    const nonce =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2);
+  const submitOnChainVerification = async (
+    payload: OnChainPayload,
+  ): Promise<string> => {
+    // TODO: Replace this placeholder with an actual contract call using wagmi writeContract
+    console.log('[OnChainVerification] Prepared payload', payload);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return `mock-tx-${Date.now()}`;
+  };
 
-    const payload = {
-      app: 'FairSharing',
-      action: 'ContributionVote',
-      projectId,
-      contributionId: contribution.id,
-      voteType,
-      voterAddress: address,
-      timestamp,
-      nonce,
-      chainId,
-    };
+  const verifyOnChain = async () => {
+    if (onChainProcessing) {
+      return false;
+    }
 
-    return `FairSharing Contribution Vote\n${JSON.stringify(payload, null, 2)}`;
+    setOnChainProcessing(true);
+    setOnChainError(null);
+
+    try {
+      const payload = await utils.vote.getOnChainPayload.fetch({
+        contributionId: contribution.id,
+      });
+      const txHash = await submitOnChainVerification(payload);
+      await confirmOnChain.mutateAsync({
+        contributionId: contribution.id,
+        txHash,
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to verify contribution on-chain', error);
+      setOnChainError(
+        'Failed to verify contribution on-chain automatically.',
+      );
+      return false;
+    } finally {
+      setOnChainProcessing(false);
+    }
   };
 
   // Handle vote
@@ -296,10 +323,15 @@ export function ContributionCard({
       return;
 
     setVoteLoading(true);
+    setOnChainError(null);
 
     // If user already voted with same type, remove vote
     if (userVote?.type === voteType) {
-      deleteVote.mutate({ contributionId: contribution.id });
+      try {
+        await deleteVote.mutateAsync({ contributionId: contribution.id });
+      } finally {
+        setVoteLoading(false);
+      }
       return;
     }
 
@@ -309,19 +341,44 @@ export function ContributionCard({
     }
 
     try {
-      const signatureMessage = buildVoteSignatureMessage(voteType);
-      const signature = await signMessageAsync({
-        message: signatureMessage,
+      // Create EIP-712 vote message
+      const voteMessage = createVoteMessage({
+        contributionId: contribution.id,
+        projectId,
+        voteType,
+        voterAddress: address,
       });
 
-      createVote.mutate({
+      // Get domain for current chain
+      const domain = getFairsharingDomain(chainId);
+
+      // Sign using EIP-712
+      const signature = await signTypedDataAsync({
+        domain,
+        types: VOTE_TYPES,
+        primaryType: 'Vote',
+        message: voteMessage,
+      });
+
+      // Submit vote to backend
+      const response = await createVote.mutateAsync({
         contributionId: contribution.id,
         type: voteType,
         signature,
-        signatureMessage,
-        chainId: (chainId ?? 0).toString(),
+        signatureType: 'EIP712',
+        signaturePayload: voteMessage,
+        chainId: chainId.toString(),
       });
-    } catch {
+
+      if (response?.decision?.justPassed && voteType === 'PASS') {
+        await verifyOnChain();
+      }
+    } catch (error) {
+      console.error('Failed to submit vote', error);
+      setOnChainError(
+        error instanceof Error ? error.message : 'Failed to submit vote. Please try again.',
+      );
+    } finally {
       setVoteLoading(false);
     }
   };
@@ -466,6 +523,30 @@ export function ContributionCard({
           </Group>
         </Stack>
       </Group>
+
+      {onChainProcessing && (
+        <Box mt={12}>
+          <Alert
+            color="blue"
+            variant="light"
+            icon={<Loader size="1rem" />}
+          >
+            Submitting verification transaction...
+          </Alert>
+        </Box>
+      )}
+
+      {onChainError && (
+        <Box mt={12}>
+          <Alert
+            color="red"
+            variant="light"
+            icon={<IconAlertCircle size="1rem" />}
+          >
+            {onChainError}
+          </Alert>
+        </Box>
+      )}
 
       {/* Edit Modal */}
       <Modal

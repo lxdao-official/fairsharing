@@ -321,12 +321,7 @@ export const contributionRouter = createTRPCRouter({
       const { contributorId, status, search, page, limit } = input;
       const skip = (page - 1) * limit;
 
-      const statusFilter =
-        status === 'ON_CHAIN'
-          ? ['PASSED', 'FAILED']
-          : status
-            ? [status]
-            : null;
+      const statusFilter = status ? [status] : null;
 
       const whereConditions: any = {
         deletedAt: null,

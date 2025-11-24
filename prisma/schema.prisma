@@ -142,6 +142,10 @@ model Contribution {
   startAt      DateTime?
   endAt        DateTime?
   status       ContributionStatus        @default(VALIDATING)
+  contributionHash String?
+  onChainSnapshot  Json?
+  onChainPayload   Json?
+  onChainPublishedAt DateTime?
   projectId    String
   project      Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   contributors ContributionContributor[]
@@ -174,6 +178,9 @@ model Vote {
   voter          User         @relation(fields: [voterId], references: [id])
   contributionId String
   contribution   Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  nonce          Int          @default(0)
+  signature      String?
+  typedDataHash  String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?

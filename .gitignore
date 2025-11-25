@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,11 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage
 
 # next.js
-/.next/
-/out/
-
-# production
-/build
+.next/
+out/
 
 # misc
 .DS_Store
@@ -43,3 +40,9 @@ next-env.d.ts
 .vibeman/execution-logs/*
 .vibeman/workflows.json
 .vibeman/ai-routing.example.json
+
+# foundry / solidity (contracts/)
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/lib/

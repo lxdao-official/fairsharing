@@ -41,6 +41,8 @@ model User {
 model Project {
   id               String                @id @default(cuid())
   key              String                @unique(map: "uq_project_key")
+  projectIdBytes32 String?               @map("project_id_bytes32")
+  onChainAddress   String?               @map("on_chain_address")
   name             String
   description      String
   logo             String?

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import superjson from 'superjson';
 import { createConfig, WagmiProvider } from 'wagmi';
 import { mainnet, sepolia } from 'wagmi/chains';
+import { defineChain } from 'viem';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
 
 import type { AppRouter } from '@/server/routers';
@@ -16,12 +17,34 @@ import { useAuth } from '@/hooks/useAuth';
 const trpc = createTRPCReact<AppRouter>();
 
 // Wagmi config with ConnectKit
+const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 31337);
+const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL ?? 'http://127.0.0.1:8545';
+
+const localChain = defineChain({
+  id: chainId,
+  name: 'Local Anvil',
+  network: 'anvil',
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: [rpcUrl],
+    },
+  },
+});
+
+const chains =
+  process.env.NODE_ENV === 'development' ? [localChain] : [sepolia, mainnet];
+
 const config = createConfig(
   getDefaultConfig({
     appName: 'FairSharing',
     walletConnectProjectId:
       process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
-    chains: [mainnet, sepolia],
+    chains,
     ssr: true,
   }),
 );

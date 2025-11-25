@@ -25,20 +25,95 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { createProjectSchema } from '@/lib/validations/project';
 import { CreateProjectFormData } from '@/types/project';
 import { trpc } from '@/utils/trpc';
-import { useAccount } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { decodeEventLog, keccak256, stringToHex, zeroAddress } from 'viem';
+import { projectFactoryAbi } from '@/abi/projectFactory';
 
 export default function CreateProjectPage() {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const reserveProjectIdMutation = trpc.project.reserveId.useMutation();
   const createProjectMutation = trpc.project.create.useMutation();
   const utils = trpc.useUtils();
   const router = useRouter();
   
   const [successModal, setSuccessModal] = useState(false);
   const [createdProject, setCreatedProject] = useState<{name: string, key: string} | null>(null);
+  const [isOnChainDeploying, setIsOnChainDeploying] = useState(false);
+
+  const projectFactoryAddress = process.env
+    .NEXT_PUBLIC_PROJECT_FACTORY_ADDRESS as `0x${string}` | undefined;
+  const validationStrategyAddress = process.env
+    .NEXT_PUBLIC_SIMPLE_VALIDATION_STRATEGY_ADDRESS as `0x${string}` | undefined;
+  const zeroAddressValue = zeroAddress;
+
+  const normalizeAddress = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+      return trimmed as `0x${string}`;
+    }
+    return null;
+  };
+
+  const buildMemberLists = (members: CreateProjectFormData['members'], ownerAddress: `0x${string}`) => {
+    const adminSet = new Set<string>();
+    const memberSet = new Set<string>();
+    const voterSet = new Set<string>();
+
+    adminSet.add(ownerAddress);
+    memberSet.add(ownerAddress);
+    voterSet.add(ownerAddress);
+
+    members?.forEach((member) => {
+      const normalized = normalizeAddress(member.address);
+      if (!normalized) return;
+      if (member.isAdmin) adminSet.add(normalized);
+      if (member.isContributor) memberSet.add(normalized);
+      if (member.isValidator) voterSet.add(normalized);
+    });
+
+    return {
+      admins: Array.from(adminSet) as `0x${string}`[],
+      members: Array.from(memberSet) as `0x${string}`[],
+      voters: Array.from(voterSet) as `0x${string}`[],
+    };
+  };
+
+  const extractProjectAddress = (receipt: {
+    logs: Array<{
+      address?: string;
+      data: `0x${string}`;
+      topics: `0x${string}`[];
+    }>;
+  }) => {
+    if (!projectFactoryAddress) {
+      return null;
+    }
+    for (const log of receipt.logs) {
+      if (log.address?.toLowerCase() !== projectFactoryAddress.toLowerCase()) {
+        continue;
+      }
+      try {
+        const decoded = decodeEventLog({
+          abi: projectFactoryAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === 'ProjectCreated' && decoded.args) {
+          return decoded.args.proxy as `0x${string}`;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+    return null;
+  };
 
   const {
     control,
@@ -76,6 +151,22 @@ export default function CreateProjectPage() {
     console.log('Form Errors:', errors);
     console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
 
+    if (!projectFactoryAddress || !validationStrategyAddress) {
+      alert('Project factory or validation strategy address is not configured.');
+      return;
+    }
+
+    if (!publicClient) {
+      alert('Wallet client unavailable. Refresh and try again.');
+      return;
+    }
+
+    const ownerAddress = normalizeAddress(address);
+    if (!ownerAddress) {
+      alert('Please connect a wallet to deploy the project on chain.');
+      return;
+    }
+
     // Check authentication before submitting
     if (!isAuthenticated) {
       alert(
@@ -84,7 +175,49 @@ export default function CreateProjectPage() {
       return;
     }
 
+    const reserveResult = await reserveProjectIdMutation.mutateAsync();
+    const reservedProjectId = reserveResult.projectId;
+    const projectIdBytes32 = keccak256(stringToHex(reservedProjectId));
+    const { admins, members, voters } = buildMemberLists(
+      data.members,
+      ownerAddress,
+    );
+
     try {
+      setIsOnChainDeploying(true);
+
+      const txHash = await writeContractAsync({
+        address: projectFactoryAddress,
+        abi: projectFactoryAbi,
+        functionName: 'createProject',
+        args: [
+          {
+            projectId: projectIdBytes32,
+            projectOwner: ownerAddress,
+            name: data.projectName,
+            metadataUri: '',
+            extraData: '0x',
+            orgAddress: zeroAddressValue,
+            validateModel: data.validateType === 'specific' ? 1 : 0,
+            contributionModel: data.submitterType === 'restricted' ? 1 : 0,
+            validationStrategy: validationStrategyAddress,
+            votingStrategy: zeroAddressValue,
+            shareTokensAddress: zeroAddressValue,
+            treasuryAddress: zeroAddressValue,
+            admins,
+            members,
+            voters,
+          },
+        ],
+      });
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const projectAddress = extractProjectAddress(receipt);
+
+      if (!projectAddress) {
+        throw new Error('Unable to determine deployed project address from logs.');
+      }
+
       const result = await createProjectMutation.mutateAsync({
         ...data,
         validationStrategy: data.validationStrategy as
@@ -92,7 +225,10 @@ export default function CreateProjectPage() {
           | 'quorum'
           | 'absolute'
           | 'relative',
-      });
+            projectId: reservedProjectId,
+            projectIdBytes32,
+            onChainAddress: projectAddress,
+          });
 
       console.log('✅ Project created successfully:', result);
       setCreatedProject({
@@ -121,6 +257,8 @@ export default function CreateProjectPage() {
       } else {
         alert(`Failed to create project: ${error?.message || 'Unknown error'}`);
       }
+    } finally {
+      setIsOnChainDeploying(false);
     }
   };
 
@@ -234,11 +372,13 @@ export default function CreateProjectPage() {
                   loading={
                     isSubmitting ||
                     createProjectMutation.isPending ||
-                    authLoading
+                    authLoading ||
+                    isOnChainDeploying
                   }
                   disabled={
                     isSubmitting ||
                     createProjectMutation.isPending ||
+                    isOnChainDeploying ||
                     authLoading ||
                     !isAuthenticated
                   }
@@ -247,6 +387,8 @@ export default function CreateProjectPage() {
                     ? 'Loading...'
                     : createProjectMutation.isPending
                     ? 'Creating...'
+                    : isOnChainDeploying
+                    ? 'Deploying on chain...'
                     : !isAuthenticated
                     ? 'Connect Wallet to Create'
                     : 'Create My Pie'}

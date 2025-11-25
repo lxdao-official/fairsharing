@@ -10,6 +10,7 @@ import {
   ProjectStatus,
 } from '@prisma/client';
 import { generateProjectKey } from '@/utils/project';
+import cuid from 'cuid';
 
 const memberInputSchema = z.object({
   address: z.string().min(1, 'Member address is required'),
@@ -85,6 +86,15 @@ const createProjectSchema = z.object({
 
   // Other Links (Optional)
   otherLinks: z.array(otherLinkInputSchema).optional(),
+  projectId: z.string().optional(),
+  projectIdBytes32: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/, 'projectIdBytes32 must be 32 bytes hex')
+    .optional(),
+  onChainAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, 'onChainAddress must be a valid address')
+    .optional(),
 });
 
 const updateProjectSchema = z.object({
@@ -155,6 +165,12 @@ async function findOrCreateUser(walletAddress: string) {
 }
 
 export const projectRouter = createTRPCRouter({
+  reserveId: protectedProcedure.mutation(async () => {
+    return {
+      projectId: cuid(),
+    };
+  }),
+
   create: protectedProcedure
     .input(createProjectSchema)
     .mutation(
@@ -215,7 +231,10 @@ export const projectRouter = createTRPCRouter({
             // Create the project
             const project = await tx.project.create({
               data: {
+                id: input.projectId,
                 key: projectKey,
+                projectIdBytes32: input.projectIdBytes32,
+                onChainAddress: input.onChainAddress,
                 name: input.projectName,
                 description: input.description,
                 logo: input.logo,

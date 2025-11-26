@@ -19,8 +19,11 @@ import {
   VOTE_CHOICES,
   type VoteChoice,
 } from '@/types/vote';
-import { publishContributionOnChain } from '../services/publishContributionOnChain';
 import { evaluateVotingStrategy } from '../services/voteStrategy';
+import {
+  ensureContributionBytes32,
+  ensureProjectBytes32,
+} from '../services/idMapping';
 
 // Input validation schemas
 const voteChoiceSchema = z.enum(VOTE_CHOICES);
@@ -46,7 +49,7 @@ const getMyVotesSchema = z.object({
 });
 
 // Apply voting strategy and check if contribution should change status
-async function applyVotingStrategy(contributionId: string) {
+async function applyVotingStrategy(contributionId: string): Promise<ContributionStatus | null> {
   const contribution = await db.contribution.findUnique({
     where: { id: contributionId, deletedAt: null },
     include: {
@@ -66,7 +69,7 @@ async function applyVotingStrategy(contributionId: string) {
   });
 
   if (!contribution || contribution.status !== ContributionStatus.VALIDATING) {
-    return;
+    return null;
   }
 
   const project = contribution.project;
@@ -116,11 +119,10 @@ async function applyVotingStrategy(contributionId: string) {
         updatedAt: new Date(),
       },
     });
-
-    if (strategyResult.shouldPass) {
-      await publishContributionOnChain(contributionId);
-    }
+    return newStatus;
   }
+
+  return null;
 }
 
 // Helper function to check voting permissions
@@ -129,7 +131,12 @@ async function checkVotingPermissions(userId: string, contributionId: string) {
     where: { id: contributionId, deletedAt: null },
     include: {
       project: {
-        include: {
+        select: {
+          id: true,
+          ownerId: true,
+          validateType: true,
+          projectIdBytes32: true,
+          onChainAddress: true,
           members: {
             where: { deletedAt: null },
             include: { user: true },
@@ -231,15 +238,36 @@ export const voteRouter = createTRPCRouter({
 
       const nonce = existingVote ? existingVote.nonce + 1 : 1;
 
+      const projectIdBytes32 = await ensureProjectBytes32(
+        contribution.project.id,
+        contribution.project.projectIdBytes32,
+      );
+      const contributionIdBytes32 = await ensureContributionBytes32(
+        contribution.id,
+        contribution.contributionIdBytes32,
+      );
+
+      const verifyingContract = contribution.project.onChainAddress as
+        | `0x${string}`
+        | null;
+
+      if (!verifyingContract) {
+        throw new TRPCError({
+          code: 'FAILED_PRECONDITION',
+          message:
+            'Project is missing on-chain address. Configure it before collecting on-chain votes.',
+        });
+      }
+
       const message = {
-        projectId: contribution.projectId,
-        contributionId: input.contributionId,
-        voter: authUser.walletAddress,
+        projectId: projectIdBytes32,
+        contributionId: contributionIdBytes32,
+        voter: authUser.walletAddress as `0x${string}`,
         choice: getVoteChoiceValue(input.choice as VoteChoice),
         nonce,
       };
 
-      return buildVoteTypedData(message);
+      return buildVoteTypedData(message, { verifyingContract });
     }),
 
   // Create or update vote
@@ -285,15 +313,38 @@ export const voteRouter = createTRPCRouter({
           });
         }
 
+        const projectIdBytes32 = await ensureProjectBytes32(
+          contribution.project.id,
+          contribution.project.projectIdBytes32,
+        );
+        const contributionIdBytes32 = await ensureContributionBytes32(
+          contribution.id,
+          contribution.contributionIdBytes32,
+        );
+
+        const verifyingContract = contribution.project.onChainAddress as
+          | `0x${string}`
+          | null;
+
+        if (!verifyingContract) {
+          throw new TRPCError({
+            code: 'FAILED_PRECONDITION',
+            message:
+              'Project is missing on-chain address. Configure it before collecting on-chain votes.',
+          });
+        }
+
         const message = {
-          projectId: contribution.projectId,
-          contributionId: input.contributionId,
-          voter: walletAddress,
+          projectId: projectIdBytes32,
+          contributionId: contributionIdBytes32,
+          voter: walletAddress as `0x${string}`,
           choice: getVoteChoiceValue(input.choice as VoteChoice),
           nonce: input.nonce,
         };
 
-        const recoveredSigner = await recoverVoteSigner(message, signature);
+        const recoveredSigner = await recoverVoteSigner(message, signature, {
+          verifyingContract,
+        });
 
         if (recoveredSigner.toLowerCase() !== walletAddress.toLowerCase()) {
           throw new TRPCError({
@@ -302,7 +353,7 @@ export const voteRouter = createTRPCRouter({
           });
         }
 
-        const typedDataHash = hashVoteTypedData(message);
+        const typedDataHash = hashVoteTypedData(message, { verifyingContract });
 
         let result;
 
@@ -332,11 +383,13 @@ export const voteRouter = createTRPCRouter({
         }
 
         // Apply voting strategy to check if contribution status should change
-        await applyVotingStrategy(input.contributionId);
+        const updatedStatus = await applyVotingStrategy(input.contributionId);
+        const contributionStatus = updatedStatus ?? contribution.status;
 
         return {
           success: true,
           vote: result,
+          contributionStatus,
           message: 'Vote submitted successfully',
         };
       } catch (error) {

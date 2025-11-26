@@ -3,10 +3,17 @@ import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, publicProcedure } from '../trpc';
 import { protectedProcedure } from '../middleware';
 import { db } from '@/lib/db';
+import cuid from 'cuid';
 import {
   ContributionStatus,
   ProjectSubmitStrategy,
+  MemberRole,
 } from '@prisma/client';
+import {
+  buildContributionOnChainPayload,
+  commitContributionOnChain,
+} from '../services/publishContributionOnChain';
+import { stringIdToBytes32 } from '../utils/id';
 
 // Input validation schemas
 const createContributionSchema = z.object({
@@ -54,6 +61,18 @@ const listContributionsByContributorSchema = z.object({
   limit: z.number().min(1).max(50).default(20),
 });
 
+const buildOnChainPayloadSchema = z.object({
+  contributionId: z.string().cuid(),
+});
+
+const markOnChainSchema = z.object({
+  contributionId: z.string().cuid(),
+  txHash: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/, 'Invalid transaction hash')
+    .optional(),
+});
+
 // Helper function to check submission permissions
 async function checkSubmissionPermissions(userId: string, projectId: string) {
   const project = await db.project.findUnique({
@@ -90,6 +109,61 @@ async function checkSubmissionPermissions(userId: string, projectId: string) {
   return project;
 }
 
+async function ensureContributionManagementPermissions(
+  userId: string | undefined,
+  contributionId: string,
+) {
+  if (!userId) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'Authentication required',
+    });
+  }
+
+  const contribution = await db.contribution.findUnique({
+    where: { id: contributionId, deletedAt: null },
+    include: {
+      project: {
+        select: {
+          id: true,
+          ownerId: true,
+          members: {
+            where: { deletedAt: null },
+            select: {
+              userId: true,
+              role: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!contribution) {
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: 'Contribution not found',
+    });
+  }
+
+  const isOwner = contribution.project.ownerId === userId;
+  const isAdmin = contribution.project.members.some((member) =>
+    member.role.includes(MemberRole.ADMIN),
+  );
+  const isValidator = contribution.project.members.some(
+    member => member.userId === userId && member.role.includes(MemberRole.VALIDATOR),
+  );
+
+  if (!isOwner && !isAdmin && !isValidator) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Only project owners, admins, or validators can publish contributions on-chain',
+    });
+  }
+
+  return contribution;
+}
+
 export const contributionRouter = createTRPCRouter({
   // Create new contribution
   create: protectedProcedure
@@ -118,8 +192,13 @@ export const contributionRouter = createTRPCRouter({
 
         // Create contribution with contributors in a transaction
         const result = await db.$transaction(async (tx) => {
+          const contributionId = cuid();
+          const contributionBytes32 = stringIdToBytes32(contributionId);
+
           const contribution = await tx.contribution.create({
             data: {
+              id: contributionId,
+              contributionIdBytes32: contributionBytes32,
               content: input.content,
               hours: input.hours,
               tags: input.tags,
@@ -506,8 +585,12 @@ export const contributionRouter = createTRPCRouter({
           });
 
           // Create new contribution version
+          const newContributionId = cuid();
+          const newContributionBytes32 = stringIdToBytes32(newContributionId);
           const newContribution = await tx.contribution.create({
             data: {
+              id: newContributionId,
+              contributionIdBytes32: newContributionBytes32,
               content: input.content,
               hours: input.hours,
               tags: input.tags,
@@ -621,6 +704,75 @@ export const contributionRouter = createTRPCRouter({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to delete contribution',
+        });
+      }
+    }),
+
+  buildOnChainPayload: protectedProcedure
+    .input(buildOnChainPayloadSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).user?.id;
+      const contribution = await ensureContributionManagementPermissions(
+        userId,
+        input.contributionId,
+      );
+
+      if (contribution.status !== ContributionStatus.PASSED) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Only passed contributions can be published on-chain.',
+        });
+      }
+
+      try {
+        return await buildContributionOnChainPayload(input.contributionId);
+      } catch (error: any) {
+        console.error('Error building on-chain payload', error);
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: error?.message || 'Failed to build on-chain payload',
+        });
+      }
+    }),
+
+  markOnChain: protectedProcedure
+    .input(markOnChainSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = (ctx as any).user?.id;
+      const contribution = await ensureContributionManagementPermissions(
+        userId,
+        input.contributionId,
+      );
+
+      if (contribution.status !== ContributionStatus.PASSED) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Only passed contributions can be marked as on-chain.',
+        });
+      }
+
+      if (contribution.onChainPublishedAt) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Contribution already marked as on-chain.',
+        });
+      }
+
+      try {
+        const payload = await commitContributionOnChain(
+          input.contributionId,
+          input.txHash,
+        );
+
+        return {
+          success: true,
+          payload,
+        };
+      } catch (error: any) {
+        console.error('Error marking contribution on-chain', error);
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: error?.message || 'Failed to mark contribution on-chain',
         });
       }
     }),

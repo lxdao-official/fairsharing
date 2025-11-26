@@ -194,6 +194,9 @@ export function ContributionsSection({ projectId }: ContributionsSectionProps) {
                   updatedAt: new Date(contribution.updatedAt),
                   startAt: contribution.startAt ? new Date(contribution.startAt) : null,
                   endAt: contribution.endAt ? new Date(contribution.endAt) : null,
+                  onChainPublishedAt: contribution.onChainPublishedAt
+                    ? new Date(contribution.onChainPublishedAt)
+                    : null,
                 }}
                 projectId={projectId}
               />

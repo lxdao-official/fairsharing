@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { generateProjectKey } from '@/utils/project';
 import cuid from 'cuid';
+import { stringIdToBytes32 } from '../utils/id';
 
 const memberInputSchema = z.object({
   address: z.string().min(1, 'Member address is required'),
@@ -202,6 +203,10 @@ export const projectRouter = createTRPCRouter({
           // Find or create project owner user
           const projectOwner = await findOrCreateUser(input.projectOwner);
 
+          const generatedProjectId = input.projectId ?? cuid();
+          const generatedProjectIdBytes32 =
+            input.projectIdBytes32 ?? stringIdToBytes32(generatedProjectId);
+
           // Map validation settings
           const validateType =
             input.validateType === 'specific'
@@ -231,9 +236,9 @@ export const projectRouter = createTRPCRouter({
             // Create the project
             const project = await tx.project.create({
               data: {
-                id: input.projectId,
+                id: generatedProjectId,
                 key: projectKey,
-                projectIdBytes32: input.projectIdBytes32,
+                projectIdBytes32: generatedProjectIdBytes32,
                 onChainAddress: input.onChainAddress,
                 name: input.projectName,
                 description: input.description,

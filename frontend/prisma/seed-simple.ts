@@ -1,16 +1,19 @@
 import { PrismaClient } from '@prisma/client';
+import cuid from 'cuid';
+import { stringIdToBytes32 } from '../src/server/utils/id';
 
 const prisma = new PrismaClient();
 
-// 生成随机钱包地址
-function generateWalletAddress(): string {
+function generateHexString(byteLength: number): string {
   return (
     '0x' +
-    Array.from({ length: 40 }, () =>
+    Array.from({ length: byteLength * 2 }, () =>
       Math.floor(Math.random() * 16).toString(16),
     ).join('')
   );
 }
+
+const generateWalletAddress = () => generateHexString(20);
 
 const projectTemplates = [
   { name: 'DeFi Revolution', symbol: 'DEFI' },
@@ -55,8 +58,13 @@ async function main() {
     const template = projectTemplates[i];
     const owner = randomChoice(users);
 
+    const projectId = cuid();
+    const projectBytes32 = stringIdToBytes32(projectId);
     const project = await prisma.project.create({
       data: {
+        id: projectId,
+        projectIdBytes32: projectBytes32,
+        onChainAddress: generateWalletAddress(),
         key: template.name.toLowerCase().replace(/\s+/g, '-'),
         name: template.name,
         description: `A test project for ${template.name}`,
@@ -73,8 +81,12 @@ async function main() {
     for (let i = 0; i < 5; i++) {
       const contributor = randomChoice(users);
 
+      const contributionId = cuid();
+      const contributionBytes32 = stringIdToBytes32(contributionId);
       const contribution = await prisma.contribution.create({
         data: {
+          id: contributionId,
+          contributionIdBytes32: contributionBytes32,
           content: randomChoice(contributionTexts),
           hours: Math.round((Math.random() * 10 + 1) * 100) / 100,
           projectId: project.id,

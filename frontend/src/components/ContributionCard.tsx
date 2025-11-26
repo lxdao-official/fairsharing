@@ -11,6 +11,8 @@ import {
   Modal,
   Alert,
   Loader,
+  Button,
+  TextInput,
 } from '@mantine/core';
 import {
   IconEdit,
@@ -27,8 +29,10 @@ import { ContributionForm } from './ContributionForm';
 import { trpc } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
 import { useUserProjects } from '@/hooks/useUserProjects';
-import { useSignTypedData } from 'wagmi';
+import { useSignTypedData, useWriteContract, usePublicClient } from 'wagmi';
 import type { VoteChoice } from '@/types/vote';
+import type { BuiltContributionPayload } from '@/server/services/publishContributionOnChain';
+import { projectAbi } from '@/abi/project';
 
 interface ContributionData {
   id: string;
@@ -57,6 +61,10 @@ interface ContributionData {
     type: string;
     voterId: string;
   }>;
+  contributionIdBytes32?: string | null;
+  onChainPublishedAt?: Date | null;
+  onChainTxHash?: string | null;
+  contributionHash?: string | null;
 }
 
 interface ContributionCardProps {
@@ -71,11 +79,19 @@ export function ContributionCard({
   const [isContentHovered, setIsContentHovered] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [voteLoading, setVoteLoading] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [payloadPreview, setPayloadPreview] = useState<BuiltContributionPayload | null>(null);
+  const [payloadError, setPayloadError] = useState<string | null>(null);
+  const [txHashInput, setTxHashInput] = useState('');
+  const [autoPublishing, setAutoPublishing] = useState(false);
+  const [autoPublishError, setAutoPublishError] = useState<string | null>(null);
 
   const { user } = useUser();
-  const { isValidatorForProject } = useUserProjects();
+  const { isValidatorForProject, getRolesInProject } = useUserProjects();
   const utils = trpc.useUtils();
   const { signTypedDataAsync } = useSignTypedData();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
@@ -90,14 +106,88 @@ export function ContributionCard({
 
   // Check if current user is a validator for this project
   const isValidator = isValidatorForProject(projectId);
+  const userRoles = getRolesInProject(projectId);
+  const canManageOnChain =
+    userRoles.includes('ADMIN') || userRoles.includes('VALIDATOR');
 
   // Vote mutation
   const createVote = trpc.vote.create.useMutation({
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       // Invalidate vote data for this contribution
       utils.vote.get.invalidate({ contributionId: contribution.id });
       // Invalidate contribution list to refresh statuses
       utils.contribution.list.invalidate({ projectId });
+
+      const shouldAutoPublish =
+        data.contributionStatus === 'PASSED' &&
+        variables.choice === 'PASS' &&
+        isValidator;
+
+      if (!shouldAutoPublish) {
+        return;
+      }
+
+      if (!publicClient) {
+        setAutoPublishError(
+          'Wallet client unavailable. Please reconnect your wallet before publishing on-chain.',
+        );
+        return;
+      }
+
+      if (autoPublishing) {
+        return;
+      }
+
+      try {
+        setAutoPublishError(null);
+        setAutoPublishing(true);
+
+        const payloadResult = await buildOnChainPayloadMutation.mutateAsync({
+          contributionId: contribution.id,
+        });
+
+        const payload = payloadResult.payload;
+        const formattedVotes = payload.votes.map((vote) => ({
+          voter: vote.voter as `0x${string}`,
+          choice: vote.choice,
+          nonce: BigInt(vote.nonce),
+          signature: vote.signature as `0x${string}`,
+        }));
+
+        const rawContributionJson = JSON.stringify(payload.rawContribution);
+
+        const txHash = await writeContractAsync({
+          address: payload.project.onChainAddress,
+          abi: projectAbi,
+          functionName: 'submitContribution',
+          args: [
+            payload.project.projectIdBytes32,
+            payload.contribution.contributionIdBytes32,
+            payload.contributionHash,
+            formattedVotes,
+            '0x' as `0x${string}`,
+            rawContributionJson,
+          ],
+        });
+
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+        if (receipt.status !== 'success') {
+          throw new Error('On-chain transaction reverted. Please retry from the Publish button.');
+        }
+
+        await markOnChainMutation.mutateAsync({
+          contributionId: contribution.id,
+          txHash,
+        });
+      } catch (error: any) {
+        console.error('Automatic on-chain publish failed', error);
+        setAutoPublishError(
+          error?.message ||
+            'Automatic on-chain publish failed. Use the Publish On-Chain button to retry.',
+        );
+      } finally {
+        setAutoPublishing(false);
+      }
     },
     onSettled: () => {
       setVoteLoading(false);
@@ -119,12 +209,61 @@ export function ContributionCard({
     },
   });
 
+  const buildOnChainPayloadMutation =
+    trpc.contribution.buildOnChainPayload.useMutation();
+
+  const markOnChainMutation = trpc.contribution.markOnChain.useMutation({
+    onSuccess: () => {
+      utils.contribution.list.invalidate({ projectId });
+      setIsPublishModalOpen(false);
+      setPayloadPreview(null);
+      setPayloadError(null);
+      setAutoPublishError(null);
+      setTxHashInput('');
+    },
+  });
+
   // Check if current user is a contributor
   const isOwnContribution = useMemo(() => {
     return user
       ? contribution.contributors.some((c) => c.contributor.id === user.id)
       : false;
   }, [contribution.contributors, user]);
+
+  const handleOpenPublishModal = async () => {
+    setIsPublishModalOpen(true);
+    setPayloadPreview(null);
+    setPayloadError(null);
+    setTxHashInput('');
+    try {
+      const data = await buildOnChainPayloadMutation.mutateAsync({
+        contributionId: contribution.id,
+      });
+      setPayloadPreview(data);
+    } catch (error: any) {
+      setPayloadError(error?.message ?? 'Failed to build on-chain payload.');
+    }
+  };
+
+  const handleClosePublishModal = () => {
+    setIsPublishModalOpen(false);
+    setPayloadPreview(null);
+    setPayloadError(null);
+    setTxHashInput('');
+    buildOnChainPayloadMutation.reset();
+    markOnChainMutation.reset();
+  };
+
+  const handleMarkOnChain = async () => {
+    try {
+      await markOnChainMutation.mutateAsync({
+        contributionId: contribution.id,
+        txHash: txHashInput || undefined,
+      });
+    } catch (error: any) {
+      setPayloadError(error?.message ?? 'Failed to mark contribution as on-chain.');
+    }
+  };
 
   // Get primary contributor (first one)
   const primaryContributor = contribution.contributors[0]?.contributor;
@@ -334,6 +473,16 @@ export function ContributionCard({
             </Text>
             <Group align="center">
               {getStatusBadge(contribution.status)}
+              {canManageOnChain && contribution.status === 'PASSED' && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  onClick={handleOpenPublishModal}
+                  loading={buildOnChainPayloadMutation.isPending}
+                >
+                  Publish On-Chain
+                </Button>
+              )}
               {isOwnContribution &&
                 contribution.status !== 'PASSED' &&
                 contribution.status !== 'ON_CHAIN' && (
@@ -348,6 +497,18 @@ export function ContributionCard({
               )}
             </Group>
           </Group>
+
+          {autoPublishError && (
+            <Alert
+              color="red"
+              icon={<IconAlertCircle size="1rem" />}
+              variant="light"
+              radius="lg"
+            >
+              Automatic on-chain publish failed: {autoPublishError}. Use the Publish On-Chain
+              action to retry once the issue is resolved.
+            </Alert>
+          )}
 
           <Box>
             <Text
@@ -450,6 +611,16 @@ export function ContributionCard({
         </Stack>
       </Group>
 
+      {contribution.status === 'ON_CHAIN' && (
+        <Box mt={12}>
+          <Text size="sm" c="gray.6">
+            {contribution.onChainTxHash
+              ? `On-chain tx hash: ${contribution.onChainTxHash}`
+              : 'Published on-chain'}
+          </Text>
+        </Box>
+      )}
+
       {/* Edit Modal */}
       <Modal
         opened={isEditModalOpen}
@@ -495,6 +666,92 @@ export function ContributionCard({
             }}
             onCancel={() => setIsEditModalOpen(false)}
           />
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={isPublishModalOpen}
+        onClose={handleClosePublishModal}
+        title="Publish Contribution On-Chain"
+        size="lg"
+        centered
+      >
+        <Stack gap={16}>
+          <Alert
+            icon={<IconAlertCircle size="1rem" />}
+            title="Manual on-chain step"
+            color="blue"
+            variant="light"
+          >
+            Voting is complete. Review the payload below and submit it with your
+            wallet when ready. After broadcasting, record the transaction hash
+            so everyone can verify the contribution on-chain.
+          </Alert>
+
+          {payloadError && (
+            <Alert color="red" icon={<IconAlertCircle size="1rem" />}>
+              {payloadError}
+            </Alert>
+          )}
+
+          {buildOnChainPayloadMutation.isPending && (
+            <Group justify="center">
+              <Loader />
+            </Group>
+          )}
+
+          {payloadPreview && (
+            <>
+              <Stack gap={4}>
+                <Text size="sm" c="gray.6">
+                  Project Address: {payloadPreview.payload.project.onChainAddress}
+                </Text>
+                <Text size="sm" c="gray.6">
+                  Project ID (bytes32): {payloadPreview.payload.project.projectIdBytes32}
+                </Text>
+                <Text size="sm" c="gray.6">
+                  Contribution ID (bytes32): {payloadPreview.payload.contribution.contributionIdBytes32}
+                </Text>
+                <Text size="sm" c="gray.6">
+                  Contribution Hash: {payloadPreview.payload.contributionHash}
+                </Text>
+                <Text size="sm" c="gray.6">
+                  Votes included: {payloadPreview.payload.votes.length}
+                </Text>
+                <Text size="sm" c="gray.6">
+                  Payload digest: {payloadPreview.payloadDigest}
+                </Text>
+              </Stack>
+
+              <Box
+                component="pre"
+                style={{
+                  backgroundColor: '#F5F5F5',
+                  borderRadius: 12,
+                  padding: 12,
+                  maxHeight: 200,
+                  overflow: 'auto',
+                }}
+              >
+                {JSON.stringify(payloadPreview.payload.rawContribution, null, 2)}
+              </Box>
+
+              <TextInput
+                label="On-chain transaction hash (optional for now)"
+                placeholder="0x..."
+                value={txHashInput}
+                onChange={(event) => setTxHashInput(event.currentTarget.value)}
+              />
+
+              <Button
+                onClick={handleMarkOnChain}
+                loading={markOnChainMutation.isPending}
+                disabled={!payloadPreview}
+              >
+                Mark as On-Chain
+              </Button>
+            </>
+          )}
         </Stack>
       </Modal>
     </Box>

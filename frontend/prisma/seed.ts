@@ -1,16 +1,20 @@
 import { PrismaClient } from '@prisma/client';
+import cuid from 'cuid';
+import { stringIdToBytes32 } from '../src/server/utils/id';
 
 const prisma = new PrismaClient();
 
-// 模拟钱包地址生成
-function generateWalletAddress(): string {
+function generateHexString(byteLength: number): string {
   return (
     '0x' +
-    Array.from({ length: 40 }, () =>
+    Array.from({ length: byteLength * 2 }, () =>
       Math.floor(Math.random() * 16).toString(16),
     ).join('')
   );
 }
+
+const generateWalletAddress = () => generateHexString(20);
+const generateTxHash = () => generateHexString(32);
 
 // 生成随机的项目名称
 const projectNames = [
@@ -127,8 +131,13 @@ async function main() {
   for (let i = 0; i < 20; i++) {
     const owner = randomChoice(users);
     const projectName = randomChoice(projectNames);
+    const projectId = cuid();
+    const projectBytes32 = stringIdToBytes32(projectId);
     const project = await prisma.project.create({
       data: {
+        id: projectId,
+        projectIdBytes32: projectBytes32,
+        onChainAddress: generateWalletAddress(),
         key: projectName.toLowerCase().replace(/\s+/g, '-') + `-${i}`,
         name: projectName,
         description: `A revolutionary ${projectName.toLowerCase()} project that aims to transform the blockchain ecosystem through innovative solutions and community-driven development.`,
@@ -233,16 +242,35 @@ async function main() {
       include: { user: true },
     });
 
-    for (let i = 0; i < contributionCount; i++) {
-      const contributor = randomChoice([
-        ...projectMembers.map((m) => m.user),
-        { id: project.ownerId },
-      ]);
-      const contribution = await prisma.contribution.create({
-        data: {
-          content: randomChoice(contributionTemplates),
-          hours: Math.round((Math.random() * 20 + 1) * 100) / 100, // 1-20小时，保留2位小数
-          tags: [
+      for (let i = 0; i < contributionCount; i++) {
+        const contributor = randomChoice([
+          ...projectMembers.map((m) => m.user),
+          { id: project.ownerId },
+        ]);
+        const contributionId = cuid();
+        const contributionBytes32 = stringIdToBytes32(contributionId);
+        const status = randomChoice([
+          'VALIDATING',
+          'PASSED',
+          'PASSED',
+          'FAILED',
+          'ON_CHAIN',
+        ]);
+        const onChainMeta =
+          status === 'ON_CHAIN'
+            ? {
+                onChainPublishedAt: randomDate(project.createdAt, new Date()),
+                onChainTxHash: generateTxHash(),
+                contributionHash: stringIdToBytes32(contributionId),
+              }
+            : {};
+        const contribution = await prisma.contribution.create({
+          data: {
+            id: contributionId,
+            contributionIdBytes32: contributionBytes32,
+            content: randomChoice(contributionTemplates),
+            hours: Math.round((Math.random() * 20 + 1) * 100) / 100, // 1-20小时，保留2位小数
+            tags: [
             randomChoice([
               'frontend',
               'backend',
@@ -259,16 +287,11 @@ async function main() {
             ]),
           ],
           projectId: project.id,
-          status: randomChoice([
-            'VALIDATING',
-            'PASSED',
-            'PASSED',
-            'FAILED',
-            'ON_CHAIN',
-          ]),
+          status,
           startAt: randomDate(project.createdAt, new Date()),
           endAt: randomDate(project.createdAt, new Date()),
           createdAt: randomDate(project.createdAt, new Date()),
+          ...onChainMeta,
         },
       });
 

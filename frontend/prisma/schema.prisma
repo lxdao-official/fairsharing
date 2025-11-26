@@ -144,10 +144,12 @@ model Contribution {
   startAt      DateTime?
   endAt        DateTime?
   status       ContributionStatus        @default(VALIDATING)
+  contributionIdBytes32 String?          @map("contribution_id_bytes32")
   contributionHash String?
   onChainSnapshot  Json?
   onChainPayload   Json?
   onChainPublishedAt DateTime?
+  onChainTxHash   String?                @map("on_chain_tx_hash")
   projectId    String
   project      Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   contributors ContributionContributor[]

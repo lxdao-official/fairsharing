@@ -1,12 +1,12 @@
-import { hashTypedData, recoverTypedDataAddress } from 'viem';
+import { hashTypedData, recoverTypedDataAddress, type Hex } from 'viem';
 
 export type VoteChoiceValue = number;
 
 export interface VoteTypedDataMessage {
-  projectId: string;
-  contributionId: string;
+  projectId: Hex;
+  contributionId: Hex;
   choice: VoteChoiceValue;
-  voter: string;
+  voter: `0x${string}`;
   nonce: number;
 }
 
@@ -33,26 +33,32 @@ const VOTE_CONTRACT_ADDRESS =
 
 export const VOTE_TYPED_DATA_TYPES = {
   Vote: [
-    { name: 'projectId', type: 'string' },
-    { name: 'contributionId', type: 'string' },
+    { name: 'projectId', type: 'bytes32' },
+    { name: 'contributionId', type: 'bytes32' },
     { name: 'voter', type: 'address' },
     { name: 'choice', type: 'uint8' },
     { name: 'nonce', type: 'uint256' },
   ],
 } as const;
 
-const getVoteDomain = (chainId?: number) => ({
+const getVoteDomain = ({
+  chainId = VOTE_CHAIN_ID,
+  verifyingContract = VOTE_CONTRACT_ADDRESS,
+}: {
+  chainId?: number;
+  verifyingContract?: `0x${string}`;
+} = {}) => ({
   name: VOTE_DOMAIN_NAME,
   version: VOTE_DOMAIN_VERSION,
-  chainId: chainId ?? VOTE_CHAIN_ID,
-  verifyingContract: VOTE_CONTRACT_ADDRESS,
+  chainId,
+  verifyingContract,
 });
 
 export const buildVoteTypedData = (
   message: VoteTypedDataMessage,
-  chainId?: number,
+  options?: { chainId?: number; verifyingContract?: `0x${string}` },
 ): VoteTypedDataPayload => ({
-  domain: getVoteDomain(chainId),
+  domain: getVoteDomain(options),
   types: VOTE_TYPED_DATA_TYPES,
   primaryType: 'Vote',
   message,
@@ -60,18 +66,18 @@ export const buildVoteTypedData = (
 
 export const hashVoteTypedData = (
   message: VoteTypedDataMessage,
-  chainId?: number,
+  options?: { chainId?: number; verifyingContract?: `0x${string}` },
 ) => {
-  const typedData = buildVoteTypedData(message, chainId);
+  const typedData = buildVoteTypedData(message, options);
   return hashTypedData(typedData);
 };
 
 export const recoverVoteSigner = async (
   message: VoteTypedDataMessage,
   signature: `0x${string}`,
-  chainId?: number,
+  options?: { chainId?: number; verifyingContract?: `0x${string}` },
 ) => {
-  const typedData = buildVoteTypedData(message, chainId);
+  const typedData = buildVoteTypedData(message, options);
   return recoverTypedDataAddress({
     ...typedData,
     signature,

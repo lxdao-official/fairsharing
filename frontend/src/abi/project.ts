@@ -18,6 +18,8 @@ export const projectAbi = [
         ],
       },
       { name: 'strategyData', type: 'bytes' },
+      { name: 'rewardRecipient', type: 'address' },
+      { name: 'rewardAmount', type: 'uint256' },
       { name: 'rawContributionJson', type: 'string' },
     ],
     outputs: [],

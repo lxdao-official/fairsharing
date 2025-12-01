@@ -6,6 +6,7 @@ import {Project} from "../project/Project.sol";
 import {ValidateModel} from "../type/ValidateModel.sol";
 import {ContributionModel} from "../type/ContributionModel.sol";
 import {ContributionStorage} from "../storage/ContributionStorage.sol";
+import {ProjectToken} from "../token/ProjectToken.sol";
 
 contract ProjectFactory {
     error ProjectFactory__NotOwner();
@@ -17,6 +18,7 @@ contract ProjectFactory {
     error ProjectFactory__ProjectNameEmpty();
     error ProjectFactory__ValidationStrategyZero();
     error ProjectFactory__ImplementationUnset();
+    error ProjectFactory__TokenSymbolEmpty();
 
     struct CreateProjectParams {
         bytes32 projectId;
@@ -29,11 +31,11 @@ contract ProjectFactory {
         ContributionModel contributionModel;
         address validationStrategy;
         address votingStrategy;
-        address shareTokensAddress;
         address treasuryAddress;
         address[] admins;
         address[] members;
         address[] voters;
+        string tokenSymbol;
     }
 
     address private _projectImplementation;
@@ -106,6 +108,9 @@ contract ProjectFactory {
         if (params.validationStrategy == address(0)) {
             revert ProjectFactory__ValidationStrategyZero();
         }
+        if (bytes(params.tokenSymbol).length == 0) {
+            revert ProjectFactory__TokenSymbolEmpty();
+        }
 
         address implementation = _projectImplementation;
         if (implementation == address(0)) {
@@ -132,7 +137,9 @@ contract ProjectFactory {
         initParams.validationStrategy = params.validationStrategy;
         initParams.votingStrategy = params.votingStrategy;
         initParams.contributionStorage = address(contributionStorageContract);
-        initParams.shareTokensAddress = params.shareTokensAddress;
+        initParams.shareTokensAddress = address(
+            new ProjectToken(_composeTokenName(params.name, params.tokenSymbol), params.tokenSymbol, projectProxy)
+        );
         initParams.treasuryAddress = params.treasuryAddress;
         initParams.admins = params.admins;
         initParams.members = params.members;
@@ -141,5 +148,17 @@ contract ProjectFactory {
         Project(projectProxy).initialize(initParams);
 
         emit ProjectCreated(projectProxy, implementation, params.projectOwner, msg.sender, params.name);
+    }
+
+    function _composeTokenName(string memory projectName, string memory tokenSymbol)
+        private
+        pure
+        returns (string memory)
+    {
+        bytes memory nameBytes = bytes(projectName);
+        if (nameBytes.length == 0) {
+            return tokenSymbol;
+        }
+        return string(abi.encodePacked(projectName, " Token"));
     }
 }

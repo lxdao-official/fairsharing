@@ -8,8 +8,10 @@ import {ValidateModel} from "../type/ValidateModel.sol";
 import {ContributionModel} from "../type/ContributionModel.sol";
 import {IValidationStrategy} from "../interfaces/IValidationStrategy.sol";
 import {IContributionStorage} from "../interfaces/IContributionStorage.sol";
+import {IProjectToken} from "../interfaces/IProjectToken.sol";
 
 contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    uint256 private constant TOKEN_DECIMALS_MULTIPLIER = 1e18;
     struct InitParams {
         uint256 id;
         bytes32 projectId;
@@ -206,76 +208,6 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                                 UPDATE INTERFACES
     //////////////////////////////////////////////////////////////////////////*/
 
-    function updateName(string calldata newName) external onlyOwner {
-        require(bytes(newName).length != 0, "Project: empty name");
-        string memory previous = _name;
-        _name = newName;
-        emit ProjectNameUpdated(previous, newName);
-    }
-
-    function updateMetadataUri(string calldata newUri) external onlyOwner {
-        require(bytes(newUri).length != 0, "Project: empty uri");
-        string memory previous = _metadataUri;
-        _metadataUri = newUri;
-        emit ProjectMetadataUriUpdated(previous, newUri);
-    }
-
-    function updateExtraData(bytes calldata newExtraData) external onlyOwner {
-        bytes memory previous = _extraData;
-        _extraData = newExtraData;
-        emit ProjectExtraDataUpdated(previous, newExtraData);
-    }
-
-    function updateOrgAddress(address newOrg) external onlyOwner {
-        address previous = _orgAddress;
-        _orgAddress = newOrg;
-        emit OrgAddressUpdated(previous, newOrg);
-    }
-
-    function updateValidateModel(ValidateModel newModel) external onlyOwner {
-        ValidateModel previous = _validateModel;
-        _validateModel = newModel;
-        emit ValidateModelUpdated(previous, newModel);
-    }
-
-    function updateContributionModel(ContributionModel newModel) external onlyOwner {
-        ContributionModel previous = _contributionModel;
-        _contributionModel = newModel;
-        emit ContributionModelUpdated(previous, newModel);
-    }
-
-    function updateValidationStrategy(address newStrategy) external onlyOwner {
-        require(newStrategy != address(0), "Project: validation strategy is zero address");
-        address previous = _validationStrategy;
-        _validationStrategy = newStrategy;
-        emit ValidationStrategyUpdated(previous, newStrategy);
-    }
-
-    function updateVotingStrategy(address newStrategy) external onlyOwner {
-        address previous = _votingStrategy;
-        _votingStrategy = newStrategy;
-        emit VotingStrategyUpdated(previous, newStrategy);
-    }
-
-    function updateContributionStorage(address newStorage) external onlyOwner {
-        require(newStorage != address(0), "Project: contribution storage is zero address");
-        address previous = _contributionStorage;
-        _contributionStorage = newStorage;
-        emit ContributionStorageUpdated(previous, newStorage);
-    }
-
-    function updateShareTokensAddress(address newShareTokens) external onlyOwner {
-        address previous = _shareTokensAddress;
-        _shareTokensAddress = newShareTokens;
-        emit ShareTokensAddressUpdated(previous, newShareTokens);
-    }
-
-    function updateTreasuryAddress(address newTreasury) external onlyOwner {
-        address previous = _treasuryAddress;
-        _treasuryAddress = newTreasury;
-        emit TreasuryAddressUpdated(previous, newTreasury);
-    }
-
     function addAdmin(address account) external onlyOwner {
         require(account != address(0), "Project: zero address");
         require(!_contains(_admins, account), "Project: already admin");
@@ -318,6 +250,8 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         bytes32 contributionHash,
         IValidationStrategy.VoteData[] calldata votes,
         bytes calldata strategyData,
+        address rewardRecipient,
+        uint256 rewardAmount,
         string calldata rawContributionJson
     ) external {
         require(projectId_ == _projectId, "Project: projectId mismatch");
@@ -325,6 +259,8 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         require(contributionHash != bytes32(0), "Project: contribution hash is zero");
         require(!_processedContributions[contributionId], "Project: contribution already processed");
         require(bytes(rawContributionJson).length != 0, "Project: empty contribution payload");
+        require(_contains(_voters, msg.sender), "Project: caller not voter");
+        require(rewardRecipient != address(0), "Project: reward recipient zero address");
 
         address validationStrategyAddress = _validationStrategy;
         require(validationStrategyAddress != address(0), "Project: validation strategy missing");
@@ -332,27 +268,32 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         address contributionStorageAddress = _contributionStorage;
         require(contributionStorageAddress != address(0), "Project: contribution storage missing");
 
-        IValidationStrategy.VerifyContext memory context = IValidationStrategy.VerifyContext({
-            project: address(this),
-            projectId: _projectId,
-            contributionId: contributionId,
-            contributionHash: contributionHash,
-            validateModel: _validateModel
-        });
-
-        IValidationStrategy(validationStrategyAddress).verify(context, votes, strategyData);
+        IValidationStrategy(validationStrategyAddress).verify(
+            IValidationStrategy.VerifyContext({
+                project: address(this),
+                projectId: _projectId,
+                contributionId: contributionId,
+                contributionHash: contributionHash,
+                validateModel: _validateModel
+            }),
+            votes,
+            strategyData
+        );
 
         _processedContributions[contributionId] = true;
 
-        IContributionStorage.ContributionContext memory storageContext = IContributionStorage.ContributionContext({
-            project: address(this),
-            projectId: _projectId,
-            contributionId: contributionId,
-            contributionHash: contributionHash,
-            submitter: msg.sender
-        });
+        IContributionStorage(contributionStorageAddress).recordContribution(
+            IContributionStorage.ContributionContext({
+                project: address(this),
+                projectId: _projectId,
+                contributionId: contributionId,
+                contributionHash: contributionHash,
+                submitter: msg.sender
+            }),
+            rawContributionJson
+        );
 
-        IContributionStorage(contributionStorageAddress).recordContribution(storageContext, rawContributionJson);
+        _mintReward(rewardRecipient, rewardAmount);
 
         emit ContributionSubmitted(_projectId, contributionId, contributionHash, msg.sender);
     }
@@ -391,6 +332,15 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             }
         }
         return false;
+    }
+
+    function _mintReward(address recipient, uint256 amount) private {
+        address tokenAddress = _shareTokensAddress;
+        if (tokenAddress == address(0) || recipient == address(0) || amount == 0) {
+            return;
+        }
+        uint256 scaledAmount = amount * TOKEN_DECIMALS_MULTIPLIER;
+        IProjectToken(tokenAddress).mint(recipient, scaledAmount);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

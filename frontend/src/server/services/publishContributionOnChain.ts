@@ -45,6 +45,8 @@ export interface OnChainPublishPayload {
   contributionHash: Hex;
   rawContribution: ContributionSnapshot;
   votes: VoteRecordPayload[];
+  rewardAmount: string;
+  rewardRecipient: string;
 }
 
 export interface BuiltContributionPayload {
@@ -141,6 +143,15 @@ export const buildContributionOnChainPayload = async (
       signature: vote.signature as string,
     }));
 
+  const rewardAmount = contribution.contributors.reduce<bigint>((total, entry) => {
+    const points = entry.points ?? 0;
+    return total + BigInt(points);
+  }, 0n);
+  const rewardRecipient = contribution.contributors[0]?.contributor.walletAddress;
+  if (!rewardRecipient) {
+    throw new Error('Contribution is missing contributor wallet address');
+  }
+
   const payload: OnChainPublishPayload = {
     project: {
       id: contribution.projectId,
@@ -154,6 +165,8 @@ export const buildContributionOnChainPayload = async (
     contributionHash,
     rawContribution: snapshot,
     votes,
+    rewardAmount: rewardAmount.toString(),
+    rewardRecipient,
   };
 
   const payloadDigest = keccak256(stringToHex(JSON.stringify(payload)));

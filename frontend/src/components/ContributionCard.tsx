@@ -156,6 +156,10 @@ export function ContributionCard({
 
         const rawContributionJson = JSON.stringify(payload.rawContribution);
 
+        const rewardAmount = BigInt(payload.rewardAmount || '0');
+        const rewardRecipient = payload.rewardRecipient as `0x${string}`;
+        const strategyData = '0x' as `0x${string}`;
+
         const txHash = await writeContractAsync({
           address: payload.project.onChainAddress,
           abi: projectAbi,
@@ -165,7 +169,9 @@ export function ContributionCard({
             payload.contribution.contributionIdBytes32,
             payload.contributionHash,
             formattedVotes,
-            '0x' as `0x${string}`,
+            strategyData,
+            rewardRecipient,
+            rewardAmount,
             rawContributionJson,
           ],
         });

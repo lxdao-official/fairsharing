@@ -29,7 +29,13 @@ import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { decodeEventLog, keccak256, stringToHex, zeroAddress } from 'viem';
+import {
+  decodeEventLog,
+  encodeAbiParameters,
+  keccak256,
+  stringToHex,
+  zeroAddress,
+} from 'viem';
 import { projectFactoryAbi } from '@/abi/projectFactory';
 
 export default function CreateProjectPage() {
@@ -45,6 +51,8 @@ export default function CreateProjectPage() {
   const [successModal, setSuccessModal] = useState(false);
   const [createdProject, setCreatedProject] = useState<{name: string, key: string} | null>(null);
   const [isOnChainDeploying, setIsOnChainDeploying] = useState(false);
+
+  const DEFAULT_REWARD_PER_CONTRIBUTION = 10n ** 18n;
 
   const projectFactoryAddress = process.env
     .NEXT_PUBLIC_PROJECT_FACTORY_ADDRESS as `0x${string}` | undefined;
@@ -184,6 +192,10 @@ export default function CreateProjectPage() {
     );
 
     try {
+      const rewardBytes = encodeAbiParameters(
+        [{ name: 'amount', type: 'uint256' }],
+        [DEFAULT_REWARD_PER_CONTRIBUTION],
+      );
       setIsOnChainDeploying(true);
 
       const txHash = await writeContractAsync({
@@ -196,17 +208,17 @@ export default function CreateProjectPage() {
             projectOwner: ownerAddress,
             name: data.projectName,
             metadataUri: '',
-            extraData: '0x',
+            extraData: rewardBytes,
             orgAddress: zeroAddressValue,
             validateModel: data.validateType === 'specific' ? 1 : 0,
             contributionModel: data.submitterType === 'restricted' ? 1 : 0,
             validationStrategy: validationStrategyAddress,
             votingStrategy: zeroAddressValue,
-            shareTokensAddress: zeroAddressValue,
             treasuryAddress: zeroAddressValue,
             admins,
             members,
             voters,
+            tokenSymbol: data.tokenName,
           },
         ],
       });

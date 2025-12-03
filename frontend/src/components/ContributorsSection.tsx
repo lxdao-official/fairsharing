@@ -114,26 +114,8 @@ export function ContributorsSection({ projectId }: ContributorsSectionProps) {
       </Alert>
     );
   }
-
-  if (!contributorsData?.contributors || contributorsData.contributors.length === 0) {
-    return (
-      <Box
-        style={{
-          backgroundColor: '#F9F9F9',
-          borderRadius: 24,
-          padding: 40,
-          textAlign: 'center',
-        }}
-      >
-        <Text size="lg" c="gray.6">
-          No contributors found
-        </Text>
-        <Text size="sm" c="gray.5" mt={8}>
-          Contributors will appear here once they start making contributions.
-        </Text>
-      </Box>
-    );
-  }
+  const totalContributors = contributorsData?.totalContributors ?? 0;
+  const hasContributors = filteredContributors.length > 0;
 
   return (
     <Stack gap={32}>
@@ -144,7 +126,7 @@ export function ContributorsSection({ projectId }: ContributorsSectionProps) {
             Contributors
           </Title>
           <Text size="lg" c="gray.6">
-            Meet the {contributorsData.totalContributors} Pie Bakers
+            Meet the {totalContributors} Pie Bakers
           </Text>
         </Group>
       </Group>
@@ -215,179 +197,197 @@ export function ContributorsSection({ projectId }: ContributorsSectionProps) {
       </Group>
 
       {/* Content */}
-      {viewMode === 'table' ? (
-        <Stack gap={16}>
-          {/* Table */}
-          <Box
-            style={{
-              backgroundColor: 'white',
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            <Table>
-              <Table.Thead>
-                <Table.Tr style={{ backgroundColor: '#F8F9FA' }}>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>ETH wallet</Table.Th>
-                  <Table.Th>Role</Table.Th>
-                  <Table.Th>
-                    <Group gap={4} align="center">
-                      <Text>Percentage</Text>
-                      <IconChevronDown size={12} />
-                    </Group>
-                  </Table.Th>
-                  <Table.Th>Pie slice earned</Table.Th>
-                  <Table.Th>
-                    <Group gap={4} align="center">
-                      <Text>Recently active</Text>
-                      <IconChevronDown size={12} />
-                    </Group>
-                  </Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {paginatedContributors.map((contributor) => (
-                  <Table.Tr key={contributor.user.id}>
-                    <Table.Td>
-                      <Group gap={12} align="center">
-                        <Avatar
-                          src={contributor.user.avatar || '/homepage/step2-icon.png'}
-                          size={32}
-                          radius="50%"
-                        />
-                        <Text fw={500}>
-                          {contributor.user.name || 
-                           contributor.user.ensName || 
-                           `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
-                        </Text>
+      {hasContributors ? (
+        viewMode === 'table' ? (
+          <Stack gap={16}>
+            {/* Table */}
+            <Box
+              style={{
+                backgroundColor: 'white',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
+            >
+              <Table>
+                <Table.Thead>
+                  <Table.Tr style={{ backgroundColor: '#F8F9FA' }}>
+                    <Table.Th>Name</Table.Th>
+                    <Table.Th>ETH wallet</Table.Th>
+                    <Table.Th>Role</Table.Th>
+                    <Table.Th>
+                      <Group gap={4} align="center">
+                        <Text>Percentage</Text>
+                        <IconChevronDown size={12} />
                       </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={8} align="center">
-                        <Text size="sm" c="gray.6">
-                          {`${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
-                        </Text>
-                        <ActionIcon
-                          variant="subtle"
-                          color="gray"
-                          size="xs"
-                          onClick={() => copyToClipboard(contributor.user.walletAddress)}
-                        >
-                          <IconCopy size={12} />
-                        </ActionIcon>
+                    </Table.Th>
+                    <Table.Th>Pie slice earned</Table.Th>
+                    <Table.Th>
+                      <Group gap={4} align="center">
+                        <Text>Recently active</Text>
+                        <IconChevronDown size={12} />
                       </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{getRoleDisplay(contributor.role)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text fw={500}>{contributor.percentage.toFixed(2)}%</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={8} align="center">
-                        <Text>🥧</Text>
-                        <Text fw={500}>{contributor.totalPoints}</Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="gray.6">
-                        {formatDate(contributor.recentActivity)}
-                      </Text>
-                    </Table.Td>
+                    </Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Box>
+                </Table.Thead>
+                <Table.Tbody>
+                  {paginatedContributors.map((contributor) => (
+                    <Table.Tr key={contributor.user.id}>
+                      <Table.Td>
+                        <Group gap={12} align="center">
+                          <Avatar
+                            src={contributor.user.avatar || '/homepage/step2-icon.png'}
+                            size={32}
+                            radius="50%"
+                          />
+                          <Text fw={500}>
+                            {contributor.user.name || 
+                             contributor.user.ensName || 
+                             `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
+                          </Text>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={8} align="center">
+                          <Text size="sm" c="gray.6">
+                            {`${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`}
+                          </Text>
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            size="xs"
+                            onClick={() => copyToClipboard(contributor.user.walletAddress)}
+                          >
+                            <IconCopy size={12} />
+                          </ActionIcon>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{getRoleDisplay(contributor.role)}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text fw={500}>{contributor.percentage.toFixed(2)}%</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={8} align="center">
+                          <Text>🥧</Text>
+                          <Text fw={500}>{contributor.totalPoints}</Text>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" c="gray.6">
+                          {formatDate(contributor.recentActivity)}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Box>
 
-          {/* Pagination */}
+            {/* Pagination */}
 
-          <Group justify="space-between" align="center">
-            <Group gap={16} align="center">
-              <Text size="sm" c="gray.6">
-                Rows per page:
-              </Text>
-              <Select
-                data={['10', '20', '50']}
-                value={itemsPerPage.toString()}
-                onChange={(value) => {
-                  setItemsPerPage(Number(value) || 10);
-                  setCurrentPage(1);
-                }}
-                w={80}
-                size="sm"
-              />
-            </Group>
-
-            <Group gap={16} align="center">
-              <Text size="sm" c="gray.6">
-                {startIndex + 1}-
-                {Math.min(startIndex + itemsPerPage, filteredContributors.length)}{' '}
-                of {filteredContributors.length}
-              </Text>
-              <Pagination
-                value={currentPage}
-                onChange={setCurrentPage}
-                total={totalPages}
-                size="sm"
-              />
-            </Group>
-          </Group>
-        </Stack>
-      ) : (
-        /* Pie Chart View */
-        <Stack gap={32} align="center">
-          <Box
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              width: '100%',
-              minHeight: 500,
-            }}
-          >
-            <PieChart
-              data={pieChartData}
-              size={400}
-              withLabelsLine
-              labelsPosition="outside"
-              labelsType="percent"
-              withTooltip
-              tooltipDataSource="segment"
-              strokeWidth={1}
-              mx="auto"
-            />
-          </Box>
-
-          {/* Contributors Legend */}
-          <Group gap={24} justify="center" wrap="wrap">
-            {filteredContributors.map((contributor, index) => (
-              <Group key={contributor.user.id} gap={8} align="center">
-                <Box
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: '50%',
-                    backgroundColor: `hsl(${45 + index * 72}, 70%, ${
-                      60 - index * 8
-                    }%)`,
-                  }}
-                />
-                <Avatar 
-                  src={contributor.user.avatar || '/homepage/step2-icon.png'} 
-                  size={24} 
-                  radius="50%" 
-                />
-                <Text size="sm" fw={500}>
-                  {contributor.user.name || 
-                   contributor.user.ensName || 
-                   `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`} {contributor.percentage.toFixed(1)}%
+            <Group justify="space-between" align="center">
+              <Group gap={16} align="center">
+                <Text size="sm" c="gray.6">
+                  Rows per page:
                 </Text>
+                <Select
+                  data={['10', '20', '50']}
+                  value={itemsPerPage.toString()}
+                  onChange={(value) => {
+                    setItemsPerPage(Number(value) || 10);
+                    setCurrentPage(1);
+                  }}
+                  w={80}
+                  size="sm"
+                />
               </Group>
-            ))}
-          </Group>
-        </Stack>
+
+              <Group gap={16} align="center">
+                <Text size="sm" c="gray.6">
+                  {startIndex + 1}-
+                  {Math.min(startIndex + itemsPerPage, filteredContributors.length)}{' '}
+                  of {filteredContributors.length}
+                </Text>
+                <Pagination
+                  value={currentPage}
+                  onChange={setCurrentPage}
+                  total={totalPages}
+                  size="sm"
+                />
+              </Group>
+            </Group>
+          </Stack>
+        ) : (
+          /* Pie Chart View */
+          <Stack gap={32} align="center">
+            <Box
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                width: '100%',
+                minHeight: 500,
+              }}
+            >
+              <PieChart
+                data={pieChartData}
+                size={400}
+                withLabelsLine
+                labelsPosition="outside"
+                labelsType="percent"
+                withTooltip
+                tooltipDataSource="segment"
+                strokeWidth={1}
+                mx="auto"
+              />
+            </Box>
+
+            {/* Contributors Legend */}
+            <Group gap={24} justify="center" wrap="wrap">
+              {filteredContributors.map((contributor, index) => (
+                <Group key={contributor.user.id} gap={8} align="center">
+                  <Box
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      backgroundColor: `hsl(${45 + index * 72}, 70%, ${
+                        60 - index * 8
+                      }%)`,
+                    }}
+                  />
+                  <Avatar 
+                    src={contributor.user.avatar || '/homepage/step2-icon.png'} 
+                    size={24} 
+                    radius="50%" 
+                  />
+                  <Text size="sm" fw={500}>
+                    {contributor.user.name || 
+                     contributor.user.ensName || 
+                     `${contributor.user.walletAddress.slice(0, 6)}...${contributor.user.walletAddress.slice(-4)}`} {contributor.percentage.toFixed(1)}%
+                  </Text>
+                </Group>
+              ))}
+            </Group>
+          </Stack>
+        )
+      ) : (
+        <Box
+          style={{
+            backgroundColor: '#F9F9F9',
+            borderRadius: 24,
+            padding: 40,
+            textAlign: 'center',
+          }}
+        >
+          <Text size="lg" c="gray.6">
+            No contributors found
+          </Text>
+          <Text size="sm" c="gray.5" mt={8}>
+            Contributors will appear here once they start making contributions.
+          </Text>
+        </Box>
       )}
     </Stack>
   );

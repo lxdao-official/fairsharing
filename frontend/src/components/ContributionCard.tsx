@@ -185,12 +185,11 @@ export function ContributionCard({
           contributionId: contribution.id,
           txHash,
         });
-      } catch (error: any) {
+      } catch (error) {
         console.error('Automatic on-chain publish failed', error);
-        setAutoPublishError(
-          error?.message ||
-            'Automatic on-chain publish failed. Use the Publish On-Chain button to retry.',
-        );
+        const errorMessage = error instanceof Error ? error.message :
+          'Automatic on-chain publish failed. Use the Publish On-Chain button to retry.';
+        setAutoPublishError(errorMessage);
       } finally {
         setAutoPublishing(false);
       }
@@ -246,8 +245,9 @@ export function ContributionCard({
         contributionId: contribution.id,
       });
       setPayloadPreview(data);
-    } catch (error: any) {
-      setPayloadError(error?.message ?? 'Failed to build on-chain payload.');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to build on-chain payload.';
+      setPayloadError(errorMessage);
     }
   };
 
@@ -266,8 +266,9 @@ export function ContributionCard({
         contributionId: contribution.id,
         txHash: txHashInput || undefined,
       });
-    } catch (error: any) {
-      setPayloadError(error?.message ?? 'Failed to mark contribution as on-chain.');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to mark contribution as on-chain.';
+      setPayloadError(errorMessage);
     }
   };
 

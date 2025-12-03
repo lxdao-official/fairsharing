@@ -116,7 +116,7 @@ export default function UserPage() {
     },
     {
       enabled: !!userId,
-      keepPreviousData: true,
+      placeholderData: (previousData) => previousData,
     },
   );
 
@@ -199,10 +199,10 @@ export default function UserPage() {
         utils.user.getPublicProfile.invalidate(),
       ];
 
-      if (updatedUser.ensName) {
+      if ('ensName' in updatedUser && updatedUser.ensName) {
         invalidations.push(
           utils.user.getPublicProfile.invalidate({
-            addressOrEns: updatedUser.ensName,
+            addressOrEns: updatedUser.ensName as string,
           }),
         );
       }
@@ -655,15 +655,15 @@ export default function UserPage() {
         profileIdentifier={identifier}
         user={
           canEditProfile
-            ? {
+            ? ({
                 id: user.id,
                 walletAddress: user.walletAddress,
                 ensName: user.ensName,
                 name: user.name,
                 avatar: user.avatar,
                 bio: user.bio,
-                links: user.links,
-              }
+                links: user.links as Record<string, string> | null | undefined,
+              })
             : undefined
         }
         onProfileUpdated={handleProfileUpdated}

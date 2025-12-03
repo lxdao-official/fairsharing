@@ -96,7 +96,7 @@ export function ContributionForm({
       projectData.submitStrategy === 'EVERYONE' ||
       projectData.submitStrategy === 'RESTRICTED'
     ) {
-      projectData.members?.forEach((member: any) => {
+      projectData.members?.forEach((member) => {
         if (member.user.id !== user?.id) {
           // Avoid duplicates
           options.push({

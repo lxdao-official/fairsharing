@@ -11,14 +11,26 @@ import {IContributionStorage} from "../interfaces/IContributionStorage.sol";
 import {IProjectToken} from "../interfaces/IProjectToken.sol";
 
 contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    error Project__IdZero();
+    error Project__OwnerZero();
+    error Project__ProjectIdZero();
+    error Project__ValidationStrategyMissing();
+    error Project__ContributionStorageMissing();
+    error Project__ProjectIdMismatch();
+    error Project__ContributionIdZero();
+    error Project__ContributionHashZero();
+    error Project__EmptyContributionPayload();
+    error Project__CallerNotVoter();
+    error Project__RewardRecipientZero();
+    error Project__ZeroAddressRoleUpdate();
+
     uint256 private constant TOKEN_DECIMALS_MULTIPLIER = 1e18;
+
     struct InitParams {
         uint256 id;
         bytes32 projectId;
         address projectOwner;
-        string name;
         string metadataUri;
-        bytes extraData;
         address orgAddress;
         ValidateModel validateModel;
         ContributionModel contributionModel;
@@ -28,56 +40,56 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         address shareTokensAddress;
         address treasuryAddress;
         address[] admins;
-        address[] members;
+        address[] contributors;
         address[] voters;
     }
 
+    struct RoleUpdates {
+        address[] addAdmins;
+        address[] removeAdmins;
+        address[] addContributors;
+        address[] removeContributors;
+        address[] addVoters;
+        address[] removeVoters;
+    }
+
+    struct UpdateSettings {
+        string metadataUri;
+        ValidateModel validateModel;
+        ContributionModel contributionModel;
+        RoleUpdates roles;
+    }
+
+    // Storage layout optimized for gas efficiency
     uint256 private _id;
     bytes32 private _projectId;
-    string private _name;
     string private _metadataUri;
-    bytes private _extraData;
-    uint64 public initializedAt;
 
-    address private _orgAddress;
-    ValidateModel private _validateModel;
-    ContributionModel private _contributionModel;
+    // Packed into single slot (20 + 8 + 1 + 1 + 2 padding = 32 bytes)
+    address private _orgAddress;                      // 20 bytes
+    uint64 public initializedAt;                      // 8 bytes
+    ValidateModel private _validateModel;             // 1 byte
+    ContributionModel private _contributionModel;     // 1 byte
 
+    // Address storage continues (each takes 1 slot)
     address private _validationStrategy;
     address private _votingStrategy;
     address private _contributionStorage;
     address private _shareTokensAddress;
     address private _treasuryAddress;
 
-    address[] private _members;
-    address[] private _admins;
-    address[] private _voters;
-    mapping(bytes32 => bool) private _processedContributions;
+    mapping(address => bool) private _admins;
+    mapping(address => bool) private _contributors;
+    mapping(address => bool) private _voters;
 
-    event ProjectInitialized(
+    event ProjectInitialized(bytes32 indexed projectId, address indexed projectOwner, string metadataUri);
+    event ProjectSettingsUpdated(
         bytes32 indexed projectId,
-        address indexed projectOwner,
-        string name,
         string metadataUri,
-        bytes extraData
+        ValidateModel validateModel,
+        ContributionModel contributionModel
     );
-    event ProjectNameUpdated(string previousName, string newName);
-    event ProjectMetadataUriUpdated(string previousUri, string newUri);
-    event ProjectExtraDataUpdated(bytes previousData, bytes newData);
-    event OrgAddressUpdated(address indexed previousOrg, address indexed newOrg);
-    event ValidateModelUpdated(ValidateModel previousModel, ValidateModel newModel);
-    event ContributionModelUpdated(ContributionModel previousModel, ContributionModel newModel);
-    event ValidationStrategyUpdated(address indexed previousStrategy, address indexed newStrategy);
-    event VotingStrategyUpdated(address indexed previousStrategy, address indexed newStrategy);
-    event ContributionStorageUpdated(address indexed previousAddress, address indexed newAddress);
-    event ShareTokensAddressUpdated(address indexed previousAddress, address indexed newAddress);
-    event TreasuryAddressUpdated(address indexed previousAddress, address indexed newAddress);
-    event MemberAdded(address indexed account);
-    event MemberRemoved(address indexed account);
-    event AdminAdded(address indexed account);
-    event AdminRemoved(address indexed account);
-    event VoterAdded(address indexed account);
-    event VoterRemoved(address indexed account);
+    event RoleUpdated(address indexed account, bool isAdmin, bool isContributor, bool isVoter);
     event ContributionSubmitted(
         bytes32 indexed projectId,
         bytes32 indexed contributionId,
@@ -90,19 +102,16 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     function initialize(InitParams calldata params) external initializer {
-        require(params.id != 0, "Project: id is zero");
-        require(params.projectOwner != address(0), "Project: owner is zero address");
-        require(bytes(params.name).length != 0, "Project: empty name");
-        require(params.projectId != bytes32(0), "Project: projectId is zero");
-        require(params.validationStrategy != address(0), "Project: validation strategy missing");
-        require(params.contributionStorage != address(0), "Project: contribution storage missing");
+        if (params.id == 0) revert Project__IdZero();
+        if (params.projectOwner == address(0)) revert Project__OwnerZero();
+        if (params.projectId == bytes32(0)) revert Project__ProjectIdZero();
+        if (params.validationStrategy == address(0)) revert Project__ValidationStrategyMissing();
+        if (params.contributionStorage == address(0)) revert Project__ContributionStorageMissing();
         __Ownable_init(params.projectOwner);
 
         _id = params.id;
         _projectId = params.projectId;
-        _name = params.name;
         _metadataUri = params.metadataUri;
-        _extraData = params.extraData;
         _orgAddress = params.orgAddress;
         _validateModel = params.validateModel;
         _contributionModel = params.contributionModel;
@@ -111,13 +120,12 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _contributionStorage = params.contributionStorage;
         _shareTokensAddress = params.shareTokensAddress;
         _treasuryAddress = params.treasuryAddress;
-        _copyArray(params.admins, _admins);
-        _copyArray(params.members, _members);
-        _copyArray(params.voters, _voters);
+
+        _seedRoles(params.projectOwner, params.admins, params.contributors, params.voters);
 
         initializedAt = uint64(block.timestamp);
 
-        emit ProjectInitialized(params.projectId, params.projectOwner, params.name, params.metadataUri, params.extraData);
+        emit ProjectInitialized(params.projectId, params.projectOwner, params.metadataUri);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -132,16 +140,8 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _projectId;
     }
 
-    function name() external view returns (string memory) {
-        return _name;
-    }
-
     function metadataUri() external view returns (string memory) {
         return _metadataUri;
-    }
-
-    function extraData() external view returns (bytes memory) {
-        return _extraData;
     }
 
     function orgAddress() external view returns (address) {
@@ -176,72 +176,38 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         return _treasuryAddress;
     }
 
-    function getMembers() external view returns (address[] memory) {
-        return _members;
-    }
-
-    function getAdmins() external view returns (address[] memory) {
-        return _admins;
-    }
-
-    function getVoters() external view returns (address[] memory) {
-        return _voters;
-    }
-
     function isAdmin(address account) external view returns (bool) {
-        return _contains(_admins, account);
+        return _admins[account];
     }
 
-    function isMember(address account) external view returns (bool) {
-        return _contains(_members, account);
+    function isContributor(address account) external view returns (bool) {
+        return _contributors[account];
     }
 
     function isVoter(address account) external view returns (bool) {
-        return _contains(_voters, account);
+        return _voters[account];
     }
 
     function hasProcessedContribution(bytes32 contributionId_) external view returns (bool) {
-        return _processedContributions[contributionId_];
+        address contributionStorageAddress = _contributionStorage;
+        if (contributionStorageAddress == address(0)) {
+            return false;
+        }
+        return IContributionStorage(contributionStorageAddress).getContributionHash(contributionId_) != bytes32(0);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
                                 UPDATE INTERFACES
     //////////////////////////////////////////////////////////////////////////*/
 
-    function addAdmin(address account) external onlyOwner {
-        require(account != address(0), "Project: zero address");
-        require(!_contains(_admins, account), "Project: already admin");
-        _admins.push(account);
-        emit AdminAdded(account);
-    }
+    function updateSettings(UpdateSettings calldata settings) external onlyOwner {
+        _metadataUri = settings.metadataUri;
+        _validateModel = settings.validateModel;
+        _contributionModel = settings.contributionModel;
 
-    function removeAdmin(address account) external onlyOwner {
-        require(_removeAddress(_admins, account), "Project: admin not found");
-        emit AdminRemoved(account);
-    }
+        _applyRoleUpdates(settings.roles);
 
-    function addMember(address account) external onlyOwner {
-        require(account != address(0), "Project: zero address");
-        require(!_contains(_members, account), "Project: already member");
-        _members.push(account);
-        emit MemberAdded(account);
-    }
-
-    function removeMember(address account) external onlyOwner {
-        require(_removeAddress(_members, account), "Project: member not found");
-        emit MemberRemoved(account);
-    }
-
-    function addVoter(address account) external onlyOwner {
-        require(account != address(0), "Project: zero address");
-        require(!_contains(_voters, account), "Project: already voter");
-        _voters.push(account);
-        emit VoterAdded(account);
-    }
-
-    function removeVoter(address account) external onlyOwner {
-        require(_removeAddress(_voters, account), "Project: voter not found");
-        emit VoterRemoved(account);
+        emit ProjectSettingsUpdated(_projectId, settings.metadataUri, settings.validateModel, settings.contributionModel);
     }
 
     function submitContribution(
@@ -254,19 +220,21 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256 rewardAmount,
         string calldata rawContributionJson
     ) external {
-        require(projectId_ == _projectId, "Project: projectId mismatch");
-        require(contributionId != bytes32(0), "Project: contributionId is zero");
-        require(contributionHash != bytes32(0), "Project: contribution hash is zero");
-        require(!_processedContributions[contributionId], "Project: contribution already processed");
-        require(bytes(rawContributionJson).length != 0, "Project: empty contribution payload");
-        require(_contains(_voters, msg.sender), "Project: caller not voter");
-        require(rewardRecipient != address(0), "Project: reward recipient zero address");
+        // Optimized validation order: check cheap parameters first
+        if (contributionId == bytes32(0)) revert Project__ContributionIdZero();
+        if (contributionHash == bytes32(0)) revert Project__ContributionHashZero();
+        if (rewardRecipient == address(0)) revert Project__RewardRecipientZero();
+        if (bytes(rawContributionJson).length == 0) revert Project__EmptyContributionPayload();
+
+        // Then check storage (more expensive)
+        if (!_voters[msg.sender]) revert Project__CallerNotVoter();
+        if (projectId_ != _projectId) revert Project__ProjectIdMismatch();
 
         address validationStrategyAddress = _validationStrategy;
-        require(validationStrategyAddress != address(0), "Project: validation strategy missing");
+        if (validationStrategyAddress == address(0)) revert Project__ValidationStrategyMissing();
 
         address contributionStorageAddress = _contributionStorage;
-        require(contributionStorageAddress != address(0), "Project: contribution storage missing");
+        if (contributionStorageAddress == address(0)) revert Project__ContributionStorageMissing();
 
         IValidationStrategy(validationStrategyAddress).verify(
             IValidationStrategy.VerifyContext({
@@ -279,8 +247,6 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             votes,
             strategyData
         );
-
-        _processedContributions[contributionId] = true;
 
         IContributionStorage(contributionStorageAddress).recordContribution(
             IContributionStorage.ContributionContext({
@@ -302,45 +268,102 @@ contract Project is Initializable, OwnableUpgradeable, UUPSUpgradeable {
                                 INTERNAL HELPERS
     //////////////////////////////////////////////////////////////////////////*/
 
-    function _copyArray(address[] calldata source, address[] storage target) private {
-        uint256 length = source.length;
-        for (uint256 i = 0; i < length; i++) {
-            address account = source[i];
-            if (account == address(0) || _contains(target, account)) {
-                continue;
+    function _seedRoles(
+        address ownerAddress,
+        address[] calldata admins,
+        address[] calldata contributors,
+        address[] calldata voters
+    ) private {
+        _admins[ownerAddress] = true;
+        _contributors[ownerAddress] = true;
+        _voters[ownerAddress] = true;
+
+        _updateRoleGroup(admins, true, _admins, false);
+        _updateRoleGroup(contributors, true, _contributors, false);
+        _updateRoleGroup(voters, true, _voters, false);
+    }
+
+    function _applyRoleUpdates(RoleUpdates calldata roles) private {
+        _updateRoleGroup(roles.addAdmins, true, _admins, true);
+        _updateRoleGroup(roles.removeAdmins, false, _admins, true);
+        _updateRoleGroup(roles.addContributors, true, _contributors, true);
+        _updateRoleGroup(roles.removeContributors, false, _contributors, true);
+        _updateRoleGroup(roles.addVoters, true, _voters, true);
+        _updateRoleGroup(roles.removeVoters, false, _voters, true);
+
+        _ensureOwnerRoles();
+    }
+
+    function _updateRoleGroup(
+        address[] calldata accounts,
+        bool value,
+        mapping(address => bool) storage roleMap,
+        bool emitEvents
+    ) private {
+        uint256 length = accounts.length;
+        for (uint256 i = 0; i < length;) {
+            address account = accounts[i];
+            if (account == address(0)) {
+                revert Project__ZeroAddressRoleUpdate();
             }
-            target.push(account);
+
+            bool changed = _setRole(roleMap, account, value);
+            if (changed && emitEvents) {
+                _emitRoleSnapshot(account);
+            }
+
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    function _contains(address[] storage array, address account) private view returns (bool) {
-        for (uint256 i = 0; i < array.length; i++) {
-            if (array[i] == account) {
-                return true;
-            }
+    function _setRole(
+        mapping(address => bool) storage roleMap,
+        address account,
+        bool value
+    ) private returns (bool) {
+        if (roleMap[account] == value) {
+            return false;
         }
-        return false;
+
+        roleMap[account] = value;
+        return true;
     }
 
-    function _removeAddress(address[] storage array, address account) private returns (bool) {
-        uint256 length = array.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (array[i] == account) {
-                array[i] = array[length - 1];
-                array.pop();
-                return true;
-            }
+    function _ensureOwnerRoles() private {
+        address ownerAddress = owner();
+
+        // Cache storage reads to memory
+        bool ownerIsAdmin = _admins[ownerAddress];
+        bool ownerIsContributor = _contributors[ownerAddress];
+        bool ownerIsVoter = _voters[ownerAddress];
+
+        // Only update and emit if needed
+        if (!ownerIsAdmin || !ownerIsContributor || !ownerIsVoter) {
+            if (!ownerIsAdmin) _admins[ownerAddress] = true;
+            if (!ownerIsContributor) _contributors[ownerAddress] = true;
+            if (!ownerIsVoter) _voters[ownerAddress] = true;
+            _emitRoleSnapshot(ownerAddress);
         }
-        return false;
+    }
+
+    function _emitRoleSnapshot(address account) private {
+        emit RoleUpdated(account, _admins[account], _contributors[account], _voters[account]);
     }
 
     function _mintReward(address recipient, uint256 amount) private {
+        // Check cheapest parameter first
+        if (amount == 0) return;
+
+        // Storage read (most expensive)
         address tokenAddress = _shareTokensAddress;
-        if (tokenAddress == address(0) || recipient == address(0) || amount == 0) {
-            return;
+        if (tokenAddress == address(0)) return;
+
+        unchecked {
+            uint256 scaledAmount = amount * TOKEN_DECIMALS_MULTIPLIER;
+            IProjectToken(tokenAddress).mint(recipient, scaledAmount);
         }
-        uint256 scaledAmount = amount * TOKEN_DECIMALS_MULTIPLIER;
-        IProjectToken(tokenAddress).mint(recipient, scaledAmount);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

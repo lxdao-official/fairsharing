@@ -47,10 +47,12 @@ const handler = (req: Request) =>
     },
     onError: ({ path, error }) => {
       // Log errors server-side for debugging
-      console.error(`❌ tRPC Error on '${path}':`, error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`❌ tRPC Error on '${path}':`, error);
+      }
 
-      // In production, don't expose sensitive information
-      if (process.env.NODE_ENV === 'production') {
+      // In production, only log server errors (not client validation errors)
+      if (process.env.NODE_ENV === 'production' && error.code === 'INTERNAL_SERVER_ERROR') {
         // Only log the basic error info, don't expose stack traces
         console.error('Production tRPC Error:', {
           path,

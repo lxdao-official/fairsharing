@@ -304,9 +304,11 @@ export default function AppPage() {
                         // Refetch the data to update counts and follow status
                         refetch();
                       }}
-                      onClick={() =>
-                        console.log(`Click project ${project.key}`)
-                      }
+                      onClick={() => {
+                        if (process.env.NODE_ENV === 'development') {
+                          console.log(`Click project ${project.key}`);
+                        }
+                      }}
                     />
                   ))}
                 </SimpleGrid>

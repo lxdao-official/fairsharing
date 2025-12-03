@@ -86,21 +86,29 @@ function TRPCInner({ children }: { children: React.ReactNode }) {
                 if (session) {
                   const parsed = JSON.parse(session);
                   if (parsed.token && parsed.expiresAt > Date.now()) {
-                    console.log('🔑 Getting auth token for request');
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('🔑 Getting auth token for request');
+                    }
                     return {
                       authorization: `Bearer ${parsed.token}`,
                     };
                   } else {
-                    console.log('⚠️ Token expired, removing from localStorage');
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('⚠️ Token expired, removing from localStorage');
+                    }
                     localStorage.removeItem('fairsharing_session');
                   }
                 }
               } catch (error) {
-                console.error('❌ Failed to get auth token:', error);
+                if (process.env.NODE_ENV === 'development') {
+                  console.error('❌ Failed to get auth token:', error);
+                }
                 localStorage.removeItem('fairsharing_session');
               }
             }
-            console.log('🚫 No valid token found');
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🚫 No valid token found');
+            }
             return {};
           },
         }),

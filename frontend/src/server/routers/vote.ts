@@ -73,8 +73,8 @@ async function applyVotingStrategy(contributionId: string): Promise<Contribution
   }
 
   const project = contribution.project;
-  const approvalStrategy = project.approvalStrategy as any;
-  const strategyKey = approvalStrategy?.strategy || 'simple';
+  const approvalStrategy = project.approvalStrategy as Record<string, unknown> | null;
+  const strategyKey = (approvalStrategy?.strategy as string) || 'simple';
   const strategyConfig = approvalStrategy?.config ?? approvalStrategy;
   
   // Count eligible voters
@@ -213,14 +213,7 @@ export const voteRouter = createTRPCRouter({
   prepareTypedData: protectedProcedure
     .input(prepareVoteSchema)
     .mutation(async ({ input, ctx }) => {
-      const authUser = (ctx as any).user;
-
-      if (!authUser) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You must be authenticated to vote',
-        });
-      }
+      const authUser = ctx.user;
 
       const contribution = await checkVotingPermissions(
         authUser.id,
@@ -274,14 +267,7 @@ export const voteRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createVoteSchema)
     .mutation(async ({ input, ctx }) => {
-      const authUser = (ctx as any).user;
-
-      if (!authUser) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You must be authenticated to vote',
-        });
-      }
+      const authUser = ctx.user;
 
       const userId = authUser.id;
       const walletAddress = authUser.walletAddress;
@@ -447,7 +433,7 @@ export const voteRouter = createTRPCRouter({
   getMyVotes: protectedProcedure
     .input(getMyVotesSchema)
     .query(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
 
       const votes = await db.vote.findMany({
         where: {
@@ -478,7 +464,7 @@ export const voteRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ contributionId: z.string().cuid() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
 
       try {
         // Find existing vote

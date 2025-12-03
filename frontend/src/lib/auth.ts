@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
 import crypto from 'crypto';
+import { serverEnv } from './env';
 
 // JWT related interfaces
 export interface JWTPayload {
@@ -64,16 +65,12 @@ export function verifySignature(
  * Generate JWT Token
  */
 export function generateJWT(userId: string, walletAddress: string): string {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('JWT_SECRET environment variable is required');
-  }
-
   const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
     userId,
     walletAddress: walletAddress.toLowerCase(),
   };
 
-  return jwt.sign(payload, process.env.JWT_SECRET, {
+  return jwt.sign(payload, serverEnv.JWT_SECRET, {
     expiresIn: '30d', // 30 days expiration
     issuer: 'fairsharing-dapp',
   });
@@ -84,11 +81,7 @@ export function generateJWT(userId: string, walletAddress: string): string {
  */
 export function verifyJWT(token: string): JWTPayload | null {
   try {
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET environment variable is required');
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, serverEnv.JWT_SECRET) as JWTPayload;
     return decoded;
   } catch (error) {
     console.error('JWT verification failed:', error);

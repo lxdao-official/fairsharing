@@ -170,7 +170,7 @@ export const userRouter = createTRPCRouter({
    */
   getMe: protectedProcedure.query(async ({ ctx }) => {
     return {
-      user: (ctx as any).user,
+      user: ctx.user,
     };
   }),
 
@@ -187,7 +187,7 @@ export const userRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const userId = (ctx as any).user.id;
+      const userId = ctx.user.id;
 
       const existingUser = await db.user.findUnique({
         where: { id: userId, deletedAt: null },
@@ -265,9 +265,9 @@ export const userRouter = createTRPCRouter({
     }),
 
   getProfileCompletionStatus: protectedProcedure.query(
-    async ({ ctx }: { ctx: any }) => {
+    async ({ ctx }) => {
       const user = await db.user.findUnique({
-        where: { id: ctx.user?.id, deletedAt: null },
+        where: { id: ctx.user.id, deletedAt: null },
         select: {
           id: true,
           walletAddress: true,
@@ -317,9 +317,9 @@ export const userRouter = createTRPCRouter({
   ),
 
   dismissProfilePrompt: protectedProcedure.mutation(
-    async ({ ctx }: { ctx: any }) => {
+    async ({ ctx }) => {
       await db.user.update({
-        where: { id: ctx.user?.id },
+        where: { id: ctx.user.id },
         data: {
           profilePromptDismissedAt: new Date(),
         },
@@ -496,9 +496,9 @@ export const userRouter = createTRPCRouter({
 
   // Get user's project memberships
   getProjectMemberships: protectedProcedure
-    .query(async ({ ctx }: { ctx: any }) => {
-      const userId = ctx.user?.id;
-      
+    .query(async ({ ctx }) => {
+      const userId = ctx.user.id;
+
       const memberships = await db.projectMember.findMany({
         where: {
           userId,
@@ -536,13 +536,7 @@ export const userRouter = createTRPCRouter({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const userId = ctx.user?.id;
-      if (!userId) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'User not authenticated',
-        });
-      }
+      const userId = ctx.user.id;
 
       const limitOwned = input?.limitOwned ?? 20;
       const limitMember = input?.limitMember ?? 20;

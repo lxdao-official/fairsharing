@@ -1,6 +1,35 @@
 export const projectAbi = [
   {
     type: 'function',
+    name: 'updateSettings',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'settings',
+        type: 'tuple',
+        components: [
+          { name: 'metadataUri', type: 'string' },
+          { name: 'validateModel', type: 'uint8' },
+          { name: 'contributionModel', type: 'uint8' },
+          {
+            name: 'roles',
+            type: 'tuple',
+            components: [
+              { name: 'addAdmins', type: 'address[]' },
+              { name: 'removeAdmins', type: 'address[]' },
+              { name: 'addContributors', type: 'address[]' },
+              { name: 'removeContributors', type: 'address[]' },
+              { name: 'addVoters', type: 'address[]' },
+              { name: 'removeVoters', type: 'address[]' },
+            ],
+          },
+        ],
+      },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
     name: 'submitContribution',
     stateMutability: 'nonpayable',
     inputs: [

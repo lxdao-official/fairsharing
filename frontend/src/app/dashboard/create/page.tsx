@@ -29,13 +29,7 @@ import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import {
-  decodeEventLog,
-  encodeAbiParameters,
-  keccak256,
-  stringToHex,
-  zeroAddress,
-} from 'viem';
+import { decodeEventLog, keccak256, stringToHex, zeroAddress } from 'viem';
 import { projectFactoryAbi } from '@/abi/projectFactory';
 
 export default function CreateProjectPage() {
@@ -51,8 +45,6 @@ export default function CreateProjectPage() {
   const [successModal, setSuccessModal] = useState(false);
   const [createdProject, setCreatedProject] = useState<{name: string, key: string} | null>(null);
   const [isOnChainDeploying, setIsOnChainDeploying] = useState(false);
-
-  const DEFAULT_REWARD_PER_CONTRIBUTION = 10n ** 18n;
 
   const projectFactoryAddress = process.env
     .NEXT_PUBLIC_PROJECT_FACTORY_ADDRESS as `0x${string}` | undefined;
@@ -71,24 +63,24 @@ export default function CreateProjectPage() {
 
   const buildMemberLists = (members: CreateProjectFormData['members'], ownerAddress: `0x${string}`) => {
     const adminSet = new Set<string>();
-    const memberSet = new Set<string>();
+    const contributorSet = new Set<string>();
     const voterSet = new Set<string>();
 
     adminSet.add(ownerAddress);
-    memberSet.add(ownerAddress);
+    contributorSet.add(ownerAddress);
     voterSet.add(ownerAddress);
 
     members?.forEach((member) => {
       const normalized = normalizeAddress(member.address);
       if (!normalized) return;
       if (member.isAdmin) adminSet.add(normalized);
-      if (member.isContributor) memberSet.add(normalized);
+      if (member.isContributor) contributorSet.add(normalized);
       if (member.isValidator) voterSet.add(normalized);
     });
 
     return {
       admins: Array.from(adminSet) as `0x${string}`[],
-      members: Array.from(memberSet) as `0x${string}`[],
+      contributors: Array.from(contributorSet) as `0x${string}`[],
       voters: Array.from(voterSet) as `0x${string}`[],
     };
   };
@@ -111,7 +103,7 @@ export default function CreateProjectPage() {
         const decoded = decodeEventLog({
           abi: projectFactoryAbi,
           data: log.data,
-          topics: log.topics,
+          topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
         });
         if (decoded.eventName === 'ProjectCreated' && decoded.args) {
           return decoded.args.proxy as `0x${string}`;
@@ -155,9 +147,11 @@ export default function CreateProjectPage() {
   }, [address, setValue]);
 
   const onSubmit = async (data: CreateProjectFormData) => {
-    console.log('=== Form Submission ===');
-    console.log('Form Errors:', errors);
-    console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== Form Submission ===');
+      console.log('Form Errors:', errors);
+      console.log('📝 Full Form Data:', JSON.stringify(data, null, 2));
+    }
 
     if (!projectFactoryAddress || !validationStrategyAddress) {
       alert('Project factory or validation strategy address is not configured.');
@@ -186,16 +180,12 @@ export default function CreateProjectPage() {
     const reserveResult = await reserveProjectIdMutation.mutateAsync();
     const reservedProjectId = reserveResult.projectId;
     const projectIdBytes32 = keccak256(stringToHex(reservedProjectId));
-    const { admins, members, voters } = buildMemberLists(
+    const { admins, contributors, voters } = buildMemberLists(
       data.members,
       ownerAddress,
     );
 
     try {
-      const rewardBytes = encodeAbiParameters(
-        [{ name: 'amount', type: 'uint256' }],
-        [DEFAULT_REWARD_PER_CONTRIBUTION],
-      );
       setIsOnChainDeploying(true);
 
       const txHash = await writeContractAsync({
@@ -208,7 +198,6 @@ export default function CreateProjectPage() {
             projectOwner: ownerAddress,
             name: data.projectName,
             metadataUri: '',
-            extraData: rewardBytes,
             orgAddress: zeroAddressValue,
             validateModel: data.validateType === 'specific' ? 1 : 0,
             contributionModel: data.submitterType === 'restricted' ? 1 : 0,
@@ -216,7 +205,7 @@ export default function CreateProjectPage() {
             votingStrategy: zeroAddressValue,
             treasuryAddress: zeroAddressValue,
             admins,
-            members,
+            contributors,
             voters,
             tokenSymbol: data.tokenName,
           },
@@ -232,6 +221,7 @@ export default function CreateProjectPage() {
 
       const result = await createProjectMutation.mutateAsync({
         ...data,
+        defaultHourlyPay: data.defaultHourlyPay ?? undefined,
         validationStrategy: data.validationStrategy as
           | 'simple'
           | 'quorum'
@@ -242,7 +232,9 @@ export default function CreateProjectPage() {
             onChainAddress: projectAddress,
           });
 
-      console.log('✅ Project created successfully:', result);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ Project created successfully:', result);
+      }
       setCreatedProject({
         name: result.project.name,
         key: result.project.key
@@ -254,33 +246,36 @@ export default function CreateProjectPage() {
       setTimeout(() => {
         router.push(`/project/${result.project.key}`);
       }, 3000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Error creating project:', error);
 
       // More specific error messages
-      if (error?.message?.includes('No authentication token')) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('No authentication token')) {
         alert(
           'Authentication failed. Please reconnect your wallet and try again.',
         );
-      } else if (error?.message?.includes('UNAUTHORIZED')) {
+      } else if (errorMessage.includes('UNAUTHORIZED')) {
         alert(
           'You are not authorized to perform this action. Please sign in again.',
         );
       } else {
-        alert(`Failed to create project: ${error?.message || 'Unknown error'}`);
+        alert(`Failed to create project: ${errorMessage}`);
       }
     } finally {
       setIsOnChainDeploying(false);
     }
   };
 
-  const onError = (errors: any) => {
-    console.log('=== Form Validation Errors ===');
-    console.log('Validation Errors:', errors);
-    console.log('===============================');
+  const onError = (errors: Record<string, { message?: string }>) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== Form Validation Errors ===');
+      console.log('Validation Errors:', errors);
+      console.log('===============================');
+    }
 
     // Show first error message
-    const firstError = Object.values(errors)[0] as any;
+    const firstError = Object.values(errors)[0];
     if (firstError?.message) {
       alert(`Form validation failed: ${firstError.message}`);
     } else {

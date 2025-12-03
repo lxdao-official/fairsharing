@@ -72,6 +72,7 @@ export interface ProjectOwnerDetails {
 export interface ProjectDetails {
   id: string;
   key: string;
+  onChainAddress?: string | null;
   name: string;
   description: string;
   logo?: string | null;

@@ -22,6 +22,10 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
     bytes32 private constant VOTE_TYPEHASH =
         keccak256("Vote(bytes32 projectId,bytes32 contributionId,address voter,uint8 choice,uint256 nonce)");
 
+    // Pre-computed hashes for gas optimization
+    bytes32 private immutable DOMAIN_NAME_HASH;
+    bytes32 private immutable DOMAIN_VERSION_HASH;
+
     mapping(bytes32 => bool) private _consumedVotes;
 
     error SimpleMajorityValidationStrategy__InvalidContext();
@@ -29,6 +33,11 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
     error SimpleMajorityValidationStrategy__NonceAlreadyUsed();
     error SimpleMajorityValidationStrategy__NotAuthorizedVoter();
     error SimpleMajorityValidationStrategy__InsufficientSupport();
+
+    constructor() {
+        DOMAIN_NAME_HASH = keccak256(bytes(DOMAIN_NAME));
+        DOMAIN_VERSION_HASH = keccak256(bytes(DOMAIN_VERSION));
+    }
 
     function verify(
         VerifyContext calldata context,
@@ -38,7 +47,9 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
         if (context.project == address(0) || context.projectId == bytes32(0) || context.contributionId == bytes32(0)) {
             revert SimpleMajorityValidationStrategy__InvalidContext();
         }
-        if (votes.length == 0) {
+
+        uint256 votesLength = votes.length;
+        if (votesLength == 0) {
             revert SimpleMajorityValidationStrategy__InsufficientSupport();
         }
 
@@ -46,7 +57,7 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
         uint256 supportCount;
         uint256 totalCount;
 
-        for (uint256 i = 0; i < votes.length; i++) {
+        for (uint256 i = 0; i < votesLength;) {
             VoteData calldata vote = votes[i];
             if (vote.voter == address(0) || vote.signature.length == 0 || vote.nonce == 0) {
                 revert SimpleMajorityValidationStrategy__InvalidVote();
@@ -71,12 +82,20 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
             _consumedVotes[voteKey] = true;
 
             if (vote.choice == CHOICE_PASS) {
-                supportCount++;
-                totalCount++;
+                unchecked {
+                    ++supportCount;
+                    ++totalCount;
+                }
             } else if (vote.choice == CHOICE_FAIL) {
-                totalCount++;
+                unchecked {
+                    ++totalCount;
+                }
             } else if (vote.choice != CHOICE_SKIP) {
                 revert SimpleMajorityValidationStrategy__InvalidVote();
+            }
+
+            unchecked {
+                ++i;
             }
         }
 
@@ -89,8 +108,8 @@ contract SimpleMajorityValidationStrategy is IValidationStrategy {
         return keccak256(
             abi.encode(
                 EIP712_DOMAIN_TYPEHASH,
-                keccak256(bytes(DOMAIN_NAME)),
-                keccak256(bytes(DOMAIN_VERSION)),
+                DOMAIN_NAME_HASH,
+                DOMAIN_VERSION_HASH,
                 block.chainid,
                 project
             )

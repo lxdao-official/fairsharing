@@ -180,7 +180,7 @@ export const projectRouter = createTRPCRouter({
         ctx,
       }: {
         input: z.infer<typeof createProjectSchema>;
-        ctx: any;
+        ctx: import('./trpc').AuthenticatedContext;
       }) => {
         try {
           // Generate unique project key
@@ -400,15 +400,9 @@ export const projectRouter = createTRPCRouter({
         ctx,
       }: {
         input: z.infer<typeof updateProjectSchema>;
-        ctx: any;
+        ctx: import('./trpc').AuthenticatedContext;
       }) => {
-        const userId = ctx.user?.id;
-        if (!userId) {
-          throw new TRPCError({
-            code: 'UNAUTHORIZED',
-            message: 'Authentication required',
-          });
-        }
+        const userId = ctx.user.id;
 
         const { projectId, payload } = input;
 
@@ -695,13 +689,13 @@ export const projectRouter = createTRPCRouter({
         limit: z.number().min(1).max(50).default(12),
       }),
     )
-    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
+    .query(async ({ input, ctx }) => {
       const userId = ctx.user?.id;
       const { filter, search, sortBy, page, limit } = input;
       const skip = (page - 1) * limit;
 
       // Build where conditions based on filter
-      let whereConditions: any = {
+      let whereConditions: Record<string, unknown> = {
         deletedAt: null,
         status: ProjectStatus.ACTIVE,
       };
@@ -739,7 +733,8 @@ export const projectRouter = createTRPCRouter({
       }
 
       // Build orderBy based on sortBy
-      let orderBy: any = { createdAt: 'desc' };
+      type OrderByType = Record<string, unknown> | Record<string, unknown>[];
+      let orderBy: OrderByType = { createdAt: 'desc' };
       if (sortBy === 'popularity') {
         orderBy = [{ followers: { _count: 'desc' } }, { createdAt: 'desc' }];
       } else if (sortBy === 'contributions') {
@@ -822,8 +817,8 @@ export const projectRouter = createTRPCRouter({
   // Follow a project
   follow: protectedProcedure
     .input(z.object({ projectKey: z.string() }))
-    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
-      const userId = ctx.user?.id;
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
       const { projectKey } = input;
 
       try {
@@ -891,8 +886,8 @@ export const projectRouter = createTRPCRouter({
   // Unfollow a project
   unfollow: protectedProcedure
     .input(z.object({ projectKey: z.string() }))
-    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
-      const userId = ctx.user?.id;
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
       const { projectKey } = input;
 
       try {
@@ -948,7 +943,7 @@ export const projectRouter = createTRPCRouter({
 
   // Get counts for all tabs
   getCounts: publicProcedure
-    .query(async ({ ctx }: { ctx: any }) => {
+    .query(async ({ ctx }) => {
       const userId = ctx.user?.id;
       
       // Build base conditions

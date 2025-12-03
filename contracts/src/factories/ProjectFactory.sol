@@ -25,7 +25,6 @@ contract ProjectFactory {
         address projectOwner;
         string name;
         string metadataUri;
-        bytes extraData;
         address orgAddress;
         ValidateModel validateModel;
         ContributionModel contributionModel;
@@ -33,7 +32,7 @@ contract ProjectFactory {
         address votingStrategy;
         address treasuryAddress;
         address[] admins;
-        address[] members;
+        address[] contributors;
         address[] voters;
         string tokenSymbol;
     }
@@ -128,9 +127,7 @@ contract ProjectFactory {
         initParams.id = numericId;
         initParams.projectId = params.projectId;
         initParams.projectOwner = params.projectOwner;
-        initParams.name = params.name;
         initParams.metadataUri = params.metadataUri;
-        initParams.extraData = params.extraData;
         initParams.orgAddress = params.orgAddress;
         initParams.validateModel = params.validateModel;
         initParams.contributionModel = params.contributionModel;
@@ -142,7 +139,7 @@ contract ProjectFactory {
         );
         initParams.treasuryAddress = params.treasuryAddress;
         initParams.admins = params.admins;
-        initParams.members = params.members;
+        initParams.contributors = params.contributors;
         initParams.voters = params.voters;
 
         Project(projectProxy).initialize(initParams);
@@ -150,15 +147,14 @@ contract ProjectFactory {
         emit ProjectCreated(projectProxy, implementation, params.projectOwner, msg.sender, params.name);
     }
 
-    function _composeTokenName(string memory projectName, string memory tokenSymbol)
+    function _composeTokenName(string calldata projectName, string calldata tokenSymbol)
         private
         pure
         returns (string memory)
     {
-        bytes memory nameBytes = bytes(projectName);
-        if (nameBytes.length == 0) {
+        if (bytes(projectName).length == 0) {
             return tokenSymbol;
         }
-        return string(abi.encodePacked(projectName, " Token"));
+        return string(bytes.concat(bytes(projectName), " Token"));
     }
 }

@@ -169,7 +169,7 @@ export const contributionRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createContributionSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
 
       try {
         // Check submission permissions
@@ -311,7 +311,7 @@ export const contributionRouter = createTRPCRouter({
       const skip = (page - 1) * limit;
 
       // Build where conditions
-      const whereConditions: any = {
+      const whereConditions: Record<string, unknown> = {
         projectId,
         deletedAt: null,
       };
@@ -402,7 +402,7 @@ export const contributionRouter = createTRPCRouter({
 
       const statusFilter = status ? [status] : null;
 
-      const whereConditions: any = {
+      const whereConditions: Record<string, unknown> = {
         deletedAt: null,
         contributors: {
           some: {
@@ -489,7 +489,7 @@ export const contributionRouter = createTRPCRouter({
   update: protectedProcedure
     .input(updateContributionSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
 
       try {
         // Check if contribution exists and user has permission to edit
@@ -637,7 +637,7 @@ export const contributionRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string().cuid() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
 
       try {
         // Check if contribution exists and user has permission to delete
@@ -711,7 +711,7 @@ export const contributionRouter = createTRPCRouter({
   buildOnChainPayload: protectedProcedure
     .input(buildOnChainPayloadSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
       const contribution = await ensureContributionManagementPermissions(
         userId,
         input.contributionId,
@@ -726,11 +726,12 @@ export const contributionRouter = createTRPCRouter({
 
       try {
         return await buildContributionOnChainPayload(input.contributionId);
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to build on-chain payload';
         console.error('Error building on-chain payload', error);
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: error?.message || 'Failed to build on-chain payload',
+          message: errorMessage,
         });
       }
     }),
@@ -738,7 +739,7 @@ export const contributionRouter = createTRPCRouter({
   markOnChain: protectedProcedure
     .input(markOnChainSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const userId = ctx.user.id;
       const contribution = await ensureContributionManagementPermissions(
         userId,
         input.contributionId,
@@ -768,11 +769,12 @@ export const contributionRouter = createTRPCRouter({
           success: true,
           payload,
         };
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to mark contribution on-chain';
         console.error('Error marking contribution on-chain', error);
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: error?.message || 'Failed to mark contribution on-chain',
+          message: errorMessage,
         });
       }
     }),

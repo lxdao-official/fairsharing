@@ -1,7 +1,30 @@
 import { initTRPC } from '@trpc/server';
 import superjson from 'superjson';
 
-const t = initTRPC.context<any>().create({
+// Define the base context type
+export interface Context {
+  req?: Request;
+}
+
+// Define the authenticated context type (extended by middleware)
+export interface AuthenticatedContext extends Context {
+  user: {
+    id: string;
+    walletAddress: string;
+    ensName: string | null;
+    name: string | null;
+    avatar: string | null;
+    bio: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  session: {
+    userId: string;
+    walletAddress: string;
+  };
+}
+
+const t = initTRPC.context<Context>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error }) => {
     return {

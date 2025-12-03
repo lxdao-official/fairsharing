@@ -29,6 +29,8 @@ import {
   ProjectValidationSettingsFields,
 } from './ProjectFormSections';
 import { trpc } from '@/utils/trpc';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
+import { projectAbi } from '@/abi/project';
 
 interface ProjectEditModalProps {
   project: ProjectDetails;
@@ -77,6 +79,139 @@ const buildFormValues = (project: ProjectDetails): EditProjectFormData => ({
   otherLinks: (project.links?.otherLinks as ProjectLinkInput[]) || [],
 });
 
+const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+
+type RoleSets = {
+  admins: Set<string>;
+  contributors: Set<string>;
+  voters: Set<string>;
+};
+
+type RoleUpdateArgs = {
+  addAdmins: `0x${string}`[];
+  removeAdmins: `0x${string}`[];
+  addContributors: `0x${string}`[];
+  removeContributors: `0x${string}`[];
+  addVoters: `0x${string}`[];
+  removeVoters: `0x${string}`[];
+};
+
+const normalizeAddress = (value?: string | null): `0x${string}` | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (ADDRESS_REGEX.test(trimmed)) {
+    return trimmed.toLowerCase() as `0x${string}`;
+  }
+  return null;
+};
+
+const buildRoleSetsFromProject = (project: ProjectDetails): RoleSets => {
+  const roleSets: RoleSets = {
+    admins: new Set<string>(),
+    contributors: new Set<string>(),
+    voters: new Set<string>(),
+  };
+
+  project.members.forEach((member) => {
+    const normalized = normalizeAddress(member.user.walletAddress);
+    if (!normalized) return;
+
+    if (member.role.includes('ADMIN')) {
+      roleSets.admins.add(normalized);
+    }
+    if (member.role.includes('CONTRIBUTOR')) {
+      roleSets.contributors.add(normalized);
+    }
+    if (member.role.includes('VALIDATOR')) {
+      roleSets.voters.add(normalized);
+    }
+  });
+
+  const ownerAddress = normalizeAddress(project.owner.walletAddress);
+  if (ownerAddress) {
+    roleSets.admins.add(ownerAddress);
+    roleSets.contributors.add(ownerAddress);
+    roleSets.voters.add(ownerAddress);
+  }
+
+  return roleSets;
+};
+
+const buildRoleSetsFromForm = (
+  ownerAddress: `0x${string}`,
+  members?: ProjectMemberInput[],
+): RoleSets => {
+  const roleSets: RoleSets = {
+    admins: new Set<string>([ownerAddress]),
+    contributors: new Set<string>([ownerAddress]),
+    voters: new Set<string>([ownerAddress]),
+  };
+
+  members?.forEach((member) => {
+    const normalized = normalizeAddress(member.address);
+    if (!normalized) return;
+    if (member.isAdmin) {
+      roleSets.admins.add(normalized);
+    }
+    if (member.isContributor) {
+      roleSets.contributors.add(normalized);
+    }
+    if (member.isValidator) {
+      roleSets.voters.add(normalized);
+    }
+  });
+
+  return roleSets;
+};
+
+const diffRoleSets = (current: RoleSets, target: RoleSets): RoleUpdateArgs => {
+  const buildAddList = (source: Set<string>, next: Set<string>) => {
+    const result: `0x${string}`[] = [];
+    next.forEach((value) => {
+      if (!source.has(value)) {
+        result.push(value as `0x${string}`);
+      }
+    });
+    return result;
+  };
+
+  const buildRemoveList = (source: Set<string>, next: Set<string>) => {
+    const result: `0x${string}`[] = [];
+    source.forEach((value) => {
+      if (!next.has(value)) {
+        result.push(value as `0x${string}`);
+      }
+    });
+    return result;
+  };
+
+  return {
+    addAdmins: buildAddList(current.admins, target.admins),
+    removeAdmins: buildRemoveList(current.admins, target.admins),
+    addContributors: buildAddList(current.contributors, target.contributors),
+    removeContributors: buildRemoveList(current.contributors, target.contributors),
+    addVoters: buildAddList(current.voters, target.voters),
+    removeVoters: buildRemoveList(current.voters, target.voters),
+  };
+};
+
+const buildMetadataUri = (
+  data: EditProjectFormData,
+  links: ProjectLinkInput[],
+) => {
+  const payload = {
+    name: data.projectName,
+    description: data.description,
+    logo: data.logo ?? null,
+    tokenSymbol: data.tokenName,
+    links,
+    defaultHourlyPay: data.defaultHourlyPay,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return `data:application/json;utf8,${encodeURIComponent(JSON.stringify(payload))}`;
+};
+
 export function ProjectEditModal({
   project,
   opened,
@@ -85,6 +220,10 @@ export function ProjectEditModal({
 }: ProjectEditModalProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [isOnChainUpdating, setIsOnChainUpdating] = useState(false);
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
+  const { address } = useAccount();
 
   const defaultValues = useMemo(() => buildFormValues(project), [project]);
 
@@ -152,8 +291,63 @@ export function ProjectEditModal({
     setSubmitError(null);
     const members = sanitizeMembers(data.members);
     const otherLinks = sanitizeLinks(data.otherLinks);
+    const contractAddress = normalizeAddress(project.onChainAddress);
+    const ownerAddress = normalizeAddress(data.projectOwner);
+
+    if (!contractAddress) {
+      setSubmitError('Project is missing an on-chain address. Please contact support.');
+      return;
+    }
+
+    if (!ownerAddress) {
+      setSubmitError('Project owner must be a valid wallet address to sync on chain.');
+      return;
+    }
+
+    if (!publicClient) {
+      setSubmitError('Wallet client unavailable. Refresh and try again.');
+      return;
+    }
+
+    const connectedAddress = normalizeAddress(address);
+    if (connectedAddress && connectedAddress !== ownerAddress) {
+      setSubmitError('Please connect the project owner wallet to update on-chain settings.');
+      return;
+    }
+
+    for (const member of members) {
+      if (!normalizeAddress(member.address)) {
+        setSubmitError(
+          `Member address "${member.address}" must be a valid wallet address for on-chain sync.`,
+        );
+        return;
+      }
+    }
+
+    const currentRoles = buildRoleSetsFromProject(project);
+    const targetRoles = buildRoleSetsFromForm(ownerAddress, members);
+    const roleUpdates = diffRoleSets(currentRoles, targetRoles);
+    const metadataUri = buildMetadataUri(data, otherLinks);
+
+    setIsOnChainUpdating(true);
 
     try {
+      const txHash = await writeContractAsync({
+        address: contractAddress,
+        abi: projectAbi,
+        functionName: 'updateSettings',
+        args: [
+          {
+            metadataUri,
+            validateModel: data.validateType === 'specific' ? 1 : 0,
+            contributionModel: data.submitterType === 'restricted' ? 1 : 0,
+            roles: roleUpdates,
+          },
+        ],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+
       await updateProjectMutation.mutateAsync({
         projectId: project.id,
         payload: {
@@ -173,18 +367,23 @@ export function ProjectEditModal({
           otherLinks,
         },
       });
-    } catch {
-      // handled in onError
+    } catch (error) {
+      const errorMessage = error instanceof Error ?
+        (error.message || 'Failed to update project.') :
+        'Failed to update project.';
+      setSubmitError(errorMessage);
+    } finally {
+      setIsOnChainUpdating(false);
     }
   };
 
   const handleRequestClose = () => {
-    if (isDirty && !updateProjectMutation.isPending) {
+    if (isDirty && !updateProjectMutation.isPending && !isOnChainUpdating) {
       setConfirmClose(true);
       return;
     }
 
-    if (!updateProjectMutation.isPending) {
+    if (!updateProjectMutation.isPending && !isOnChainUpdating) {
       reset(defaultValues, { keepDirty: false });
       setSubmitError(null);
       onClose();
@@ -206,8 +405,8 @@ export function ProjectEditModal({
         title="Edit Project"
         size="768px"
         centered
-        closeOnClickOutside={!updateProjectMutation.isPending}
-        closeOnEscape={!updateProjectMutation.isPending}
+        closeOnClickOutside={!updateProjectMutation.isPending && !isOnChainUpdating}
+        closeOnEscape={!updateProjectMutation.isPending && !isOnChainUpdating}
         scrollAreaComponent={ScrollArea.Autosize}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
@@ -235,6 +434,7 @@ export function ProjectEditModal({
                 showSlugPreview
                 slugBasePath="/project/"
                 slugFallback={project.key}
+                readOnlyTokenName={true}
               />
             </Stack>
 
@@ -295,13 +495,15 @@ export function ProjectEditModal({
                 variant="light"
                 color="gray"
                 onClick={handleRequestClose}
-                disabled={updateProjectMutation.isPending}
+                disabled={updateProjectMutation.isPending || isOnChainUpdating}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                loading={updateProjectMutation.isPending}
+                loading={
+                  updateProjectMutation.isPending || isOnChainUpdating
+                }
               >
                 Save Changes
               </Button>

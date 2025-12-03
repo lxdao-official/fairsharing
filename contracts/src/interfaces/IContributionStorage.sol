@@ -14,4 +14,6 @@ interface IContributionStorage {
         ContributionContext calldata context,
         string calldata rawContributionJson
     ) external;
+
+    function getContributionHash(bytes32 contributionId) external view returns (bytes32);
 }

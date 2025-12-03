@@ -255,7 +255,7 @@ async function main() {
           'PASSED',
           'FAILED',
           'ON_CHAIN',
-        ]);
+        ] as const);
         const onChainMeta =
           status === 'ON_CHAIN'
             ? {

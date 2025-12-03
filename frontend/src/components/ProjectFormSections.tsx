@@ -58,6 +58,7 @@ interface BasicInfoProps<T extends ProjectFormValues> {
   showSlugPreview?: boolean;
   slugBasePath?: string;
   slugFallback?: string;
+  readOnlyTokenName?: boolean;
 }
 
 export function ProjectBasicInfoFields<T extends ProjectFormValues>({
@@ -69,6 +70,7 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
   showSlugPreview = false,
   slugBasePath = '/project/',
   slugFallback,
+  readOnlyTokenName = false,
 }: BasicInfoProps<T>) {
   const projectName = watch('projectName') ?? '';
   const description = watch('description') ?? '';
@@ -160,6 +162,7 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
           <TextInput
             {...field}
             onChange={(event) => {
+              if (readOnlyTokenName) return;
               const value = event.currentTarget.value
                 .replace(/[^A-Za-z0-9]/g, '')
                 .toUpperCase();
@@ -171,10 +174,12 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
               </span>
             }
             required
+            readOnly={readOnlyTokenName}
             description={
               <span style={{ color: '#6B7280', fontSize: 16 }}>
-                Token representing contributions in your project (Only letters
-                and numbers, automatically converted to uppercase)
+                {readOnlyTokenName
+                  ? 'Token name cannot be modified after project creation'
+                  : 'Token representing contributions in your project (Only letters and numbers, automatically converted to uppercase)'}
               </span>
             }
             placeholder={tokenName || 'TOKEN'}
@@ -182,6 +187,8 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
             styles={{
               input: {
                 width: '160px',
+                backgroundColor: readOnlyTokenName ? '#f5f5f5' : undefined,
+                cursor: readOnlyTokenName ? 'not-allowed' : undefined,
               },
             }}
             error={errors.tokenName?.message as string | undefined}

@@ -9,16 +9,32 @@ import {
   MemberRole,
   ContributionStatus,
 } from '@prisma/client';
+import {
+  buildVoteTypedData,
+  hashVoteTypedData,
+  recoverVoteSigner,
+} from '@/lib/vote-signature';
+import {
+  getVoteChoiceValue,
+  VOTE_CHOICES,
+  type VoteChoice,
+} from '@/types/vote';
+import { publishContributionOnChain } from '../services/publishContributionOnChain';
+import { evaluateVotingStrategy } from '../services/voteStrategy';
 
 // Input validation schemas
+const voteChoiceSchema = z.enum(VOTE_CHOICES);
+
 const createVoteSchema = z.object({
   contributionId: z.string().cuid(),
-  type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  choice: voteChoiceSchema,
+  signature: z.string().regex(/^0x[a-fA-F0-9]+$/, 'Invalid signature'),
+  nonce: z.number().int().positive(),
 });
 
-const updateVoteSchema = z.object({
+const prepareVoteSchema = z.object({
   contributionId: z.string().cuid(),
-  type: z.enum(['PASS', 'FAIL', 'SKIP']),
+  choice: voteChoiceSchema,
 });
 
 const getVotesSchema = z.object({
@@ -28,15 +44,6 @@ const getVotesSchema = z.object({
 const getMyVotesSchema = z.object({
   projectId: z.string().cuid(),
 });
-
-// Interface for future blockchain integration
-interface BlockchainVotingService {
-  submitVotingResult(contributionId: string, passed: boolean, votes: any): Promise<string>;
-  getVotingStatus(contributionId: string): Promise<any>;
-}
-
-// Placeholder for blockchain service - will be implemented later
-const blockchainService: BlockchainVotingService | null = null;
 
 // Apply voting strategy and check if contribution should change status
 async function applyVotingStrategy(contributionId: string) {
@@ -64,7 +71,8 @@ async function applyVotingStrategy(contributionId: string) {
 
   const project = contribution.project;
   const approvalStrategy = project.approvalStrategy as any;
-  const strategy = approvalStrategy?.strategy || 'simple';
+  const strategyKey = approvalStrategy?.strategy || 'simple';
+  const strategyConfig = approvalStrategy?.config ?? approvalStrategy;
   
   // Count eligible voters
   let eligibleVoters = 0;
@@ -76,69 +84,29 @@ async function applyVotingStrategy(contributionId: string) {
     eligibleVoters = project.members.length;
   }
 
-  // Count votes
-  const passVotes = contribution.votes.filter(v => v.type === VoteType.PASS).length;
-  const failVotes = contribution.votes.filter(v => v.type === VoteType.FAIL).length;
-  const skipVotes = contribution.votes.filter(v => v.type === VoteType.SKIP).length;
-  const totalVotes = passVotes + failVotes + skipVotes;
-
-  let shouldPass = false;
-  let shouldFail = false;
-  let statusDetermined = false;
-
-  // Apply different voting strategies
-  switch (strategy) {
-    case 'simple': 
-      // Simple Majority: If more than 50% of the votes go to "Approve" (PASS)
-      const nonSkipVotes = totalVotes - skipVotes;
-      if (nonSkipVotes > 0) {
-        shouldPass = passVotes > nonSkipVotes / 2;
-        shouldFail = failVotes > nonSkipVotes / 2;
-        statusDetermined = shouldPass || shouldFail;
-      }
-      break;
-
-    case 'quorum': 
-      // Quorum + Majority: Currently disabled in frontend
-      // Future implementation would require quorum + majority logic
-      break;
-
-    case 'absolute': 
-      // Absolute Threshold: Currently disabled in frontend
-      // Future implementation would require fixed number/percentage threshold
-      break;
-
-    case 'relative': 
-      // Relative Majority: Currently disabled in frontend
-      // Future implementation would be whoever has most votes wins
-      break;
-
-    default:
-      // Fallback to simple majority for unknown strategies
-      const defaultNonSkipVotes = totalVotes - skipVotes;
-      if (defaultNonSkipVotes > 0) {
-        shouldPass = passVotes > defaultNonSkipVotes / 2;
-        shouldFail = failVotes > defaultNonSkipVotes / 2;
-        statusDetermined = shouldPass || shouldFail;
-      }
-      break;
-  }
+  const strategyResult = evaluateVotingStrategy(strategyKey, {
+    eligibleVoters,
+    votes: contribution.votes.map(vote => ({
+      type: vote.type,
+      voterId: vote.voterId,
+    })),
+    config: strategyConfig,
+  });
 
   // Update contribution status if determined
-  if (statusDetermined) {
-    const newStatus = shouldPass ? ContributionStatus.PASSED : ContributionStatus.FAILED;
-    
+  if (strategyResult.statusDetermined) {
+    const newStatus = strategyResult.shouldPass
+      ? ContributionStatus.PASSED
+      : ContributionStatus.FAILED;
+
     // Log voting result for debugging
     console.log(`Voting result for contribution ${contributionId}:`, {
-      strategy,
-      passVotes,
-      failVotes,
-      skipVotes,
-      totalVotes,
+      strategy: strategyKey,
+      ...strategyResult.meta,
       eligibleVoters,
       newStatus,
-      shouldPass,
-      shouldFail,
+      shouldPass: strategyResult.shouldPass,
+      shouldFail: strategyResult.shouldFail,
     });
     
     await db.contribution.update({
@@ -149,16 +117,8 @@ async function applyVotingStrategy(contributionId: string) {
       },
     });
 
-    // Prepare for future blockchain integration
-    if (blockchainService) {
-      // This will be implemented when blockchain integration is ready
-      // await blockchainService.submitVotingResult(contributionId, shouldPass, {
-      //   passVotes,
-      //   failVotes,
-      //   skipVotes,
-      //   totalVotes,
-      //   eligibleVoters,
-      // });
+    if (strategyResult.shouldPass) {
+      await publishContributionOnChain(contributionId);
     }
   }
 }
@@ -243,15 +203,68 @@ async function checkVotingPermissions(userId: string, contributionId: string) {
 }
 
 export const voteRouter = createTRPCRouter({
+  prepareTypedData: protectedProcedure
+    .input(prepareVoteSchema)
+    .mutation(async ({ input, ctx }) => {
+      const authUser = (ctx as any).user;
+
+      if (!authUser) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'You must be authenticated to vote',
+        });
+      }
+
+      const contribution = await checkVotingPermissions(
+        authUser.id,
+        input.contributionId,
+      );
+
+      const existingVote = await db.vote.findUnique({
+        where: {
+          voterId_contributionId: {
+            voterId: authUser.id,
+            contributionId: input.contributionId,
+          },
+        },
+      });
+
+      const nonce = existingVote ? existingVote.nonce + 1 : 1;
+
+      const message = {
+        projectId: contribution.projectId,
+        contributionId: input.contributionId,
+        voter: authUser.walletAddress,
+        choice: getVoteChoiceValue(input.choice as VoteChoice),
+        nonce,
+      };
+
+      return buildVoteTypedData(message);
+    }),
+
   // Create or update vote
   create: protectedProcedure
     .input(createVoteSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
+      const authUser = (ctx as any).user;
+
+      if (!authUser) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'You must be authenticated to vote',
+        });
+      }
+
+      const userId = authUser.id;
+      const walletAddress = authUser.walletAddress;
+      const signature = input.signature as `0x${string}`;
 
       try {
         // Check voting permissions
-        await checkVotingPermissions(userId, input.contributionId);
+        const contribution = await checkVotingPermissions(
+          userId,
+          input.contributionId,
+        );
 
         // Check if user has already voted
         const existingVote = await db.vote.findUnique({
@@ -263,36 +276,57 @@ export const voteRouter = createTRPCRouter({
           },
         });
 
+        const expectedNonce = existingVote ? existingVote.nonce + 1 : 1;
+
+        if (input.nonce !== expectedNonce) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid nonce for vote submission',
+          });
+        }
+
+        const message = {
+          projectId: contribution.projectId,
+          contributionId: input.contributionId,
+          voter: walletAddress,
+          choice: getVoteChoiceValue(input.choice as VoteChoice),
+          nonce: input.nonce,
+        };
+
+        const recoveredSigner = await recoverVoteSigner(message, signature);
+
+        if (recoveredSigner.toLowerCase() !== walletAddress.toLowerCase()) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Signature does not match connected wallet',
+          });
+        }
+
+        const typedDataHash = hashVoteTypedData(message);
+
         let result;
 
         if (existingVote) {
-          if (existingVote.deletedAt) {
-            // Restore soft-deleted vote with new type
-            result = await db.vote.update({
-              where: { id: existingVote.id },
-              data: {
-                type: input.type as VoteType,
-                deletedAt: null,
-                updatedAt: new Date(),
-              },
-            });
-          } else {
-            // Update existing vote
-            result = await db.vote.update({
-              where: { id: existingVote.id },
-              data: {
-                type: input.type as VoteType,
-                updatedAt: new Date(),
-              },
-            });
-          }
+          result = await db.vote.update({
+            where: { id: existingVote.id },
+            data: {
+              type: input.choice as VoteType,
+              signature,
+              nonce: input.nonce,
+              typedDataHash,
+              deletedAt: null,
+              updatedAt: new Date(),
+            },
+          });
         } else {
-          // Create new vote
           result = await db.vote.create({
             data: {
-              type: input.type as VoteType,
+              type: input.choice as VoteType,
               voterId: userId,
               contributionId: input.contributionId,
+              signature,
+              nonce: input.nonce,
+              typedDataHash,
             },
           });
         }
@@ -385,61 +419,6 @@ export const voteRouter = createTRPCRouter({
       });
 
       return votes;
-    }),
-
-  // Update existing vote
-  update: protectedProcedure
-    .input(updateVoteSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = (ctx as any).user?.id;
-
-      try {
-        // Check voting permissions
-        await checkVotingPermissions(userId, input.contributionId);
-
-        // Check if vote exists
-        const existingVote = await db.vote.findUnique({
-          where: {
-            voterId_contributionId: {
-              voterId: userId,
-              contributionId: input.contributionId,
-            },
-          },
-        });
-
-        if (!existingVote || existingVote.deletedAt) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'Vote not found',
-          });
-        }
-
-        // Update vote
-        const result = await db.vote.update({
-          where: { id: existingVote.id },
-          data: {
-            type: input.type as VoteType,
-            updatedAt: new Date(),
-          },
-        });
-
-        return {
-          success: true,
-          vote: result,
-          message: 'Vote updated successfully',
-        };
-      } catch (error) {
-        console.error('Error updating vote:', error);
-
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to update vote',
-        });
-      }
     }),
 
   // Delete vote (soft delete)

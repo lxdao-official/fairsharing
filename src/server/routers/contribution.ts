@@ -46,6 +46,14 @@ const listContributionsSchema = z.object({
   limit: z.number().min(1).max(50).default(20),
 });
 
+const listContributionsByContributorSchema = z.object({
+  contributorId: z.string().cuid(),
+  status: z.enum(['VALIDATING', 'PASSED', 'FAILED', 'ON_CHAIN']).optional(),
+  search: z.string().optional(),
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(50).default(20),
+});
+
 // Helper function to check submission permissions
 async function checkSubmissionPermissions(userId: string, projectId: string) {
   const project = await db.project.findUnique({
@@ -281,6 +289,98 @@ export const contributionRouter = createTRPCRouter({
                 votes: {
                   where: { deletedAt: null },
                 },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        db.contribution.count({
+          where: whereConditions,
+        }),
+      ]);
+
+      return {
+        contributions,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          hasNext: page * limit < totalCount,
+          hasPrev: page > 1,
+        },
+      };
+    }),
+
+  // List contributions by contributor across projects
+  listByContributor: publicProcedure
+    .input(listContributionsByContributorSchema)
+    .query(async ({ input }) => {
+      const { contributorId, status, search, page, limit } = input;
+      const skip = (page - 1) * limit;
+
+      const statusFilter = status ? [status] : null;
+
+      const whereConditions: any = {
+        deletedAt: null,
+        contributors: {
+          some: {
+            contributorId,
+            deletedAt: null,
+          },
+        },
+      };
+
+      if (statusFilter) {
+        whereConditions.status =
+          statusFilter.length === 1
+            ? statusFilter[0]
+            : {
+                in: statusFilter,
+              };
+      }
+
+      if (search && search.trim()) {
+        whereConditions.content = {
+          contains: search,
+          mode: 'insensitive',
+        };
+      }
+
+      const [contributions, totalCount] = await Promise.all([
+        db.contribution.findMany({
+          where: whereConditions,
+          include: {
+            project: {
+              select: {
+                id: true,
+                key: true,
+                name: true,
+                logo: true,
+              },
+            },
+            contributors: {
+              where: { deletedAt: null },
+              include: {
+                contributor: {
+                  select: {
+                    id: true,
+                    walletAddress: true,
+                    ensName: true,
+                    name: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+            votes: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                type: true,
+                voterId: true,
               },
             },
           },

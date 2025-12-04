@@ -33,7 +33,7 @@ export function ContributionsSection({ projectId }: ContributionsSectionProps) {
   const statusMap: Record<string, string | undefined> = {
     all: undefined,
     validating: 'VALIDATING',
-    'on-chain': undefined, // We'll filter this in the frontend for now
+    'on-chain': 'ON_CHAIN',
   };
 
   // Fetch contributions
@@ -50,18 +50,10 @@ export function ContributionsSection({ projectId }: ContributionsSectionProps) {
     limit: itemsPerPage,
   });
 
-  // Filter for on-chain tab (PASSED/FAILED)
   const filteredContributions = useMemo(() => {
     if (!contributionsData?.contributions) return [];
-    
-    if (activeTab === 'on-chain') {
-      return contributionsData.contributions.filter(
-        c => c.status === 'PASSED' || c.status === 'FAILED'
-      );
-    }
-    
     return contributionsData.contributions;
-  }, [contributionsData?.contributions, activeTab]);
+  }, [contributionsData?.contributions]);
 
   // Get unique contributors for the select dropdown
   const contributors = useMemo(() => {

@@ -20,6 +20,7 @@ interface ImageUploadProps {
   size?: number;
   placeholder?: string;
   error?: string;
+  variant?: 'rounded' | 'circle';
 }
 
 export function ImageUpload({
@@ -28,10 +29,13 @@ export function ImageUpload({
   size = 200,
   placeholder = 'Upload project logo',
   error: externalError,
+  variant = 'rounded',
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
   const dropzoneRef = useRef<any>(null);
+  const borderRadius = variant === 'circle' ? '50%' : 12;
 
   const uploadMutation = api.upload.uploadImage.useMutation({
     onSuccess: (data) => {
@@ -90,6 +94,10 @@ export function ImageUpload({
         maxSize={5 * 1024 * 1024} // 5MB
         accept={IMAGE_MIME_TYPE}
         disabled={isUploading}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+        onFocusCapture={() => setIsHovering(true)}
+        onBlurCapture={() => setIsHovering(false)}
         style={{
           width: size,
           height: size,
@@ -98,14 +106,23 @@ export function ImageUpload({
             : externalError
             ? '2px dashed #F43F5E'
             : '2px dashed #e9ecef',
-          borderRadius: 12,
+          borderRadius,
           cursor: 'pointer',
           position: 'relative',
           overflow: 'hidden',
         }}
       >
         {value ? (
-          <Box style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <Box
+            style={{
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              borderRadius,
+              overflow: 'hidden',
+              border: variant === 'circle' ? '2px solid #e9ecef' : undefined,
+            }}
+          >
             <Image
               src={value}
               alt="Uploaded"
@@ -113,7 +130,7 @@ export function ImageUpload({
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                borderRadius: 12,
+                borderRadius,
               }}
             />
 
@@ -129,17 +146,19 @@ export function ImageUpload({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: 0,
+                opacity: isHovering ? 1 : 0,
+                pointerEvents: isHovering ? 'auto' : 'none',
                 transition: 'opacity 0.2s',
-                borderRadius: 12,
+                borderRadius,
               }}
-              className="image-overlay"
             >
               <Group gap="sm">
                 <ActionIcon
                   variant="filled"
-                  color="white"
+                  color="dark"
                   size="lg"
+                  radius="xl"
+                  aria-label="Change avatar"
                   onClick={(e) => {
                     e.stopPropagation();
                     openFileDialog();
@@ -151,6 +170,8 @@ export function ImageUpload({
                   variant="filled"
                   color="red"
                   size="lg"
+                  radius="xl"
+                  aria-label="Remove avatar"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRemove();
@@ -207,12 +228,6 @@ export function ImageUpload({
           {error || externalError}
         </Alert>
       )}
-
-      <style jsx global>{`
-        .image-overlay:hover {
-          opacity: 1 !important;
-        }
-      `}</style>
     </Box>
   );
 }

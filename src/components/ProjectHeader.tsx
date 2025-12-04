@@ -12,52 +12,40 @@ import {
 } from '@tabler/icons-react';
 import { ContributionForm } from './ContributionForm';
 import { VotingEligibilityPanel } from './VotingEligibilityPanel';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ProjectEditModal } from './ProjectEditModal';
-
-interface ProjectData {
-  id: string;
-  key: string;
-  name: string;
-  description: string;
-  logo?: string | null;
-  tokenSymbol?: string | null;
-  validateType: string;
-  links?: any;
-  owner: {
-    id: string;
-    walletAddress: string;
-    ensName?: string | null;
-    name?: string | null;
-    avatar?: string | null;
-  };
-  members: Array<{
-    id: string;
-    role: string[];
-    user: {
-      id: string;
-      walletAddress: string;
-      ensName?: string | null;
-      name?: string | null;
-      avatar?: string | null;
-    };
-  }>;
-  _count: {
-    contributions: number;
-    members: number;
-    followers: number;
-  };
-}
+import { useAuth } from '@/hooks/useAuth';
+import type { ProjectDetails, ProjectLinkInput } from '@/types/project';
 
 interface ProjectHeaderProps {
-  project: ProjectData;
+  project: ProjectDetails;
 }
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [projectData, setProjectData] = useState<ProjectDetails>(project);
+  const { session } = useAuth();
+  const currentUserId = session?.user.id;
+
+  const links =
+    (projectData.links?.otherLinks as ProjectLinkInput[] | undefined) || [];
+
+  const canEdit = useMemo(() => {
+    if (!currentUserId) return false;
+    return projectData.members.some(
+      (member) =>
+        member.user.id === currentUserId &&
+        member.role.includes('ADMIN'),
+    );
+  }, [currentUserId, projectData.members]);
   
-  // Parse social links from project.links
-  const links = project.links?.otherLinks || [];
+  const handleProjectUpdated = (updatedProject: ProjectDetails) => {
+    setProjectData(updatedProject);
+  };
+
+  useEffect(() => {
+    setProjectData(project);
+  }, [project]);
   
   // Helper function to get icon for link type
   const getLinkIcon = (type: string) => {
@@ -81,8 +69,8 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: project.name,
-        text: project.description,
+        title: projectData.name,
+        text: projectData.description,
         url: window.location.href,
       });
     } else {
@@ -95,30 +83,32 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
     <Box>
       <Stack>
         <Avatar 
-          src={project.logo || '/homepage/step2-icon.png'} 
+          src={projectData.logo || '/homepage/step2-icon.png'} 
           size={82} 
           radius="100%" 
         />
         <Group justify="space-between" gap={16}>
           <Group>
             <Title order={1} size={48} fw={700}>
-              {project.name}
+              {projectData.name}
             </Title>
-            {project.tokenSymbol && (
+            {projectData.tokenSymbol && (
               <Text size="lg" c="gray.6" fw={500}>
-                (${project.tokenSymbol})
+                (${projectData.tokenSymbol})
               </Text>
             )}
           </Group>
           <Group>
-            <Button 
-              variant="light" 
-              size="sm" 
-              p="8px 12px"
-              onClick={() => setIsEditModalOpen(true)}
-            >
-              <IconEdit size={16} />
-            </Button>
+            {canEdit && (
+              <Button 
+                variant="light" 
+                size="sm" 
+                p="8px 12px"
+                onClick={() => setIsEditModalOpen(true)}
+              >
+                <IconEdit size={16} />
+              </Button>
+            )}
             <Button 
               variant="light" 
               size="sm" 
@@ -132,7 +122,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
         <Group display="flex" gap={16} align="flex-start">
           <Stack style={{ width: 340, flexShrink: 0 }}>
             <Text size="md" style={{ maxWidth: 600 }}>
-              {project.description}
+              {projectData.description}
             </Text>
             <Group mt={20} gap={24}>
               <Stack gap={4}>
@@ -140,7 +130,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                   Contributions
                 </Text>
                 <Text size="md" fw={700}>
-                  {project._count.contributions.toLocaleString()}
+                  {projectData._count.contributions.toLocaleString()}
                 </Text>
               </Stack>
               <Stack gap={4}>
@@ -148,7 +138,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                   Pie Bakers
                 </Text>
                 <Text size="md" fw={700}>
-                  {project._count.members.toLocaleString()}
+                  {projectData._count.members.toLocaleString()}
                 </Text>
               </Stack>
               <Stack gap={4}>
@@ -156,13 +146,13 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
                   Followers
                 </Text>
                 <Text size="md" fw={700}>
-                  {project._count.followers.toLocaleString()}
+                  {projectData._count.followers.toLocaleString()}
                 </Text>
               </Stack>
             </Group>
             {links.length > 0 && (
               <Group mt={24} gap={24}>
-                {links.map((link: any, index: number) => (
+                {links.map((link, index) => (
                   <Button 
                     key={index}
                     variant="subtle" 
@@ -180,18 +170,21 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             )}
           </Stack>
           <Stack gap={24} style={{ flex: 1 }}>
-            <ContributionForm projectId={project.id} />
-            <VotingEligibilityPanel project={project} />
+            <ContributionForm projectId={projectData.id} />
+            <VotingEligibilityPanel project={projectData} />
           </Stack>
         </Group>
       </Stack>
       
       {/* Edit Project Modal */}
-      <ProjectEditModal
-        project={project}
-        opened={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-      />
+      {canEdit && (
+        <ProjectEditModal
+          project={projectData}
+          opened={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onProjectUpdated={handleProjectUpdated}
+        />
+      )}
     </Box>
   );
 }

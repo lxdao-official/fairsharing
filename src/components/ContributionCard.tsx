@@ -27,6 +27,8 @@ import { ContributionForm } from './ContributionForm';
 import { trpc } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
 import { useUserProjects } from '@/hooks/useUserProjects';
+import { useSignTypedData } from 'wagmi';
+import type { VoteChoice } from '@/types/vote';
 
 interface ContributionData {
   id: string;
@@ -73,6 +75,7 @@ export function ContributionCard({
   const { user } = useUser();
   const { isValidatorForProject } = useUserProjects();
   const utils = trpc.useUtils();
+  const { signTypedDataAsync } = useSignTypedData();
 
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
@@ -100,6 +103,8 @@ export function ContributionCard({
       setVoteLoading(false);
     },
   });
+
+  const prepareVote = trpc.vote.prepareTypedData.useMutation();
 
   // Delete vote mutation
   const deleteVote = trpc.vote.delete.useMutation({
@@ -209,7 +214,7 @@ export function ContributionCard({
 
   // Get vote button style
   const getVoteItemStyle = (
-    voteType: 'PASS' | 'FAIL' | 'SKIP',
+    voteType: VoteChoice,
     isActive: boolean,
   ) => {
     const baseStyle = {
@@ -260,7 +265,7 @@ export function ContributionCard({
   };
 
   // Handle vote
-  const handleVote = (voteType: 'PASS' | 'FAIL' | 'SKIP') => {
+  const handleVote = async (voteType: VoteChoice) => {
     if (
       contribution.status !== 'VALIDATING' ||
       !user ||
@@ -274,12 +279,31 @@ export function ContributionCard({
     // If user already voted with same type, remove vote
     if (userVote?.type === voteType) {
       deleteVote.mutate({ contributionId: contribution.id });
-    } else {
-      // Create or update vote
-      createVote.mutate({
+      return;
+    }
+
+    try {
+      const typedData = await prepareVote.mutateAsync({
         contributionId: contribution.id,
-        type: voteType,
+        choice: voteType,
       });
+
+      const signature = await signTypedDataAsync({
+        domain: typedData.domain,
+        types: typedData.types as any,
+        primaryType: typedData.primaryType,
+        message: typedData.message,
+      });
+
+      await createVote.mutateAsync({
+        contributionId: contribution.id,
+        choice: voteType,
+        nonce: typedData.message.nonce,
+        signature,
+      });
+    } catch (error) {
+      console.error('Failed to submit vote:', error);
+      setVoteLoading(false);
     }
   };
 
@@ -310,7 +334,9 @@ export function ContributionCard({
             </Text>
             <Group align="center">
               {getStatusBadge(contribution.status)}
-              {isOwnContribution && contribution.status !== 'PASSED' && (
+              {isOwnContribution &&
+                contribution.status !== 'PASSED' &&
+                contribution.status !== 'ON_CHAIN' && (
                 <ActionIcon
                   variant="subtle"
                   color="gray"

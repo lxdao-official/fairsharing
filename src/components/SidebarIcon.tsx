@@ -1,4 +1,4 @@
-import { UnstyledButton, Avatar, Image } from '@mantine/core';
+import { UnstyledButton, Avatar, Box } from '@mantine/core';
 import { ReactNode } from 'react';
 import Link from 'next/link';
 
@@ -9,7 +9,19 @@ interface SidebarIconProps {
   avatar?: string;
   size?: number;
   onClick?: () => void;
+  ariaLabel?: string;
 }
+
+const ACTIVE_INDICATOR_STYLES = {
+  width: 6,
+  height: 32,
+  backgroundColor: '#3B82F6',
+  borderRadius: '0 4px 4px 0',
+  position: 'absolute' as const,
+  left: -13,
+  top: '50%',
+  transform: 'translateY(-50%)',
+};
 
 export function SidebarIcon({
   href,
@@ -18,10 +30,13 @@ export function SidebarIcon({
   avatar,
   size = 56,
   onClick,
+  ariaLabel,
 }: SidebarIconProps) {
   const buttonContent = (
     <UnstyledButton
       onClick={onClick}
+      aria-label={ariaLabel}
+      aria-current={isActive ? 'page' : undefined}
       style={{
         width: size,
         height: size,
@@ -34,20 +49,7 @@ export function SidebarIcon({
         justifyContent: 'center',
       }}
     >
-      {isActive && (
-        <Image
-          src="/icons/active-icon.png"
-          alt="Active indicator"
-          style={{
-            width: 6,
-            height: 32,
-            position: 'absolute',
-            left: -13,
-            top: '50%',
-            transform: 'translateY(-50%)',
-          }}
-        />
-      )}
+      {isActive && <Box style={ACTIVE_INDICATOR_STYLES} />}
 
       {avatar ? <Avatar src={avatar} size={size - 2} radius="50%" /> : children}
     </UnstyledButton>

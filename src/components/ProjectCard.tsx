@@ -7,7 +7,7 @@ import {
   IconBookmarkFilled,
 } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { trpc } from '@/utils/trpc';
 import { useAccount } from 'wagmi';
 
@@ -37,9 +37,28 @@ export function ProjectCard({
   const [isHovered, setIsHovered] = useState(false);
   const { isConnected } = useAccount();
 
-  // TRPC mutations for follow/unfollow
-  const followMutation = trpc.project.follow.useMutation();
-  const unfollowMutation = trpc.project.unfollow.useMutation();
+  // TRPC utils and mutations for follow/unfollow
+  const utils = trpc.useUtils();
+  const followMutation = trpc.project.follow.useMutation({
+    onSuccess: () => {
+      // Invalidate counts so Following tab updates
+      void utils.project.getCounts.invalidate();
+      // Also invalidate list queries to keep cards in sync
+      void utils.project.list.invalidate();
+    },
+  });
+  const unfollowMutation = trpc.project.unfollow.useMutation({
+    onSuccess: () => {
+      // Invalidate counts so Following tab updates
+      void utils.project.getCounts.invalidate();
+      // Also invalidate list queries to keep cards in sync
+      void utils.project.list.invalidate();
+    },
+  });
+
+  useEffect(() => {
+    setFollowed(isFollowed);
+  }, [isFollowed]);
 
   const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -49,18 +68,20 @@ export function ProjectCard({
       return;
     }
 
+    const previousState = followed;
+    const nextState = !followed;
+    setFollowed(nextState);
+
     try {
-      if (followed) {
+      if (previousState) {
         await unfollowMutation.mutateAsync({ projectKey: id });
-        setFollowed(false);
-        onFollow?.();
       } else {
         await followMutation.mutateAsync({ projectKey: id });
-        setFollowed(true);
-        onFollow?.();
       }
+      onFollow?.();
     } catch (error) {
       console.error('Error toggling follow:', error);
+      setFollowed(previousState);
       // Could show error notification here
     }
   };

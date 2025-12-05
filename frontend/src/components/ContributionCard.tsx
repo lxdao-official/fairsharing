@@ -265,7 +265,6 @@ export function ContributionCard({
       setPayloadPreview(null);
       setPayloadError(null);
       setAutoPublishError(null);
-      setTxHashInput('');
     },
   });
 

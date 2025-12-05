@@ -5,7 +5,7 @@ import '@mantine/charts/styles.css';
 import './globals.css';
 import { Lexend, Roboto } from 'next/font/google';
 import ClientWrapper from '../components/ClientWrapper';
-import { ColorSchemeScript, MantineProvider } from '@mantine/core';
+import { MantineProvider } from '@mantine/core';
 import { theme } from '../theme';
 
 const lexend = Lexend({
@@ -31,11 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <ColorSchemeScript />
-      </head>
-      <body className={`${roboto.variable} ${lexend.variable}  antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${roboto.variable} ${lexend.variable}  antialiased`} suppressHydrationWarning>
         <ClientWrapper>
           <MantineProvider theme={theme}>{children}</MantineProvider>
         </ClientWrapper>

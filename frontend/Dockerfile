@@ -31,6 +31,10 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 # ENV NEXT_TELEMETRY_DISABLED=1
 
+# Set environment variables for build
+ENV SKIP_ENV_VALIDATION=1
+ENV NODE_ENV=production
+
 RUN \
   if [ -f yarn.lock ]; then yarn run build; \
   elif [ -f package-lock.json ]; then npm run build; \

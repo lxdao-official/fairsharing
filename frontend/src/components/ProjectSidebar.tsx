@@ -151,6 +151,7 @@ export function ProjectSidebar({
                     isActive={project.key === currentProject}
                     avatar={avatar}
                     ariaLabel={`Go to ${project.name} project`}
+                    title={project.name}
                   >
                     {!avatar && (
                       <Text fw={700} size="sm" c="#0F172A">

@@ -85,7 +85,28 @@ const sharedProjectShape = {
       /^(0x[a-fA-F0-9]{40}|.+\.eth)$/,
       'Must be a valid Ethereum address (0x...) or ENS domain (.eth)',
     ),
-  members: yup.array().of(memberSchema).optional(),
+  members: yup
+    .array()
+    .of(memberSchema)
+    .optional()
+    .test(
+      'unique-members',
+      'Member addresses must be unique',
+      (members = []) => {
+        const seen = new Set<string>();
+        for (const member of members) {
+          const normalized = member?.address?.trim().toLowerCase();
+          if (!normalized) {
+            continue;
+          }
+          if (seen.has(normalized)) {
+            return false;
+          }
+          seen.add(normalized);
+        }
+        return true;
+      },
+    ),
   otherLinks: yup.array().of(otherLinkSchema).optional(),
 };
 

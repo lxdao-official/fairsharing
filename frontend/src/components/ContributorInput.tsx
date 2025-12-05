@@ -6,6 +6,7 @@ interface ContributorInputProps {
   onChange?: (value: string) => void;
   placeholder?: string;
   data?: string[];
+  disabled?: boolean;
 }
 
 export function ContributorInput({
@@ -13,6 +14,7 @@ export function ContributorInput({
   onChange,
   placeholder = 'Contributor',
   data = ['char', 'alice', 'bob', 'charlie', 'david', 'emma', 'frank'],
+  disabled = false,
 }: ContributorInputProps) {
   return (
     <Box
@@ -25,7 +27,9 @@ export function ContributorInput({
         alignItems: 'center',
         padding: '0 8px',
         gap: 8,
+        opacity: disabled ? 0.7 : 1,
       }}
+      title={disabled ? value : undefined}
     >
       <IconUser
         size={16}
@@ -38,6 +42,7 @@ export function ContributorInput({
         placeholder={placeholder}
         data={data}
         limit={5}
+        disabled={disabled}
         styles={{
           input: {
             border: 'none',

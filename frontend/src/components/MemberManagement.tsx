@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Group,
   Text,
-  TextInput,
   Checkbox,
   Tooltip,
   Button,
@@ -26,7 +25,9 @@ function MemberManagement({
   onChange,
   ownerAddress,
 }: MemberManagementProps) {
+  const [memberError, setMemberError] = useState<string | null>(null);
   const normalizedOwner = ownerAddress.toLowerCase();
+  const normalizeAddress = (address: string) => address.trim().toLowerCase();
   // Ensure we always have at least one member
   const ensureOwnerPresent = (membersList: ProjectMemberInput[]) => {
     const hasOwner = membersList.some(
@@ -71,6 +72,16 @@ function MemberManagement({
         ],
   );
 
+  const hasDuplicateAddress = (address: string, indexToSkip?: number) => {
+    const normalizedAddress = normalizeAddress(address);
+    if (!normalizedAddress) return false;
+    return members.some(
+      (member, i) =>
+        i !== indexToSkip &&
+        normalizeAddress(member.address) === normalizedAddress,
+    );
+  };
+
   const addMember = () => {
     const hasEmptyRow = members.some((member) => member.address.trim() === '');
     if (hasEmptyRow) return;
@@ -91,10 +102,18 @@ function MemberManagement({
     if (members[index].address.toLowerCase() === normalizedOwner) {
       return;
     }
+    if (field === 'address' && typeof newValue === 'string') {
+      if (hasDuplicateAddress(newValue, index)) {
+        setMemberError('Member addresses must be unique');
+        return;
+      }
+    }
+
     const updatedMembers = members.map((member, i) =>
       i === index ? { ...member, [field]: newValue } : member,
     );
     onChange?.(updatedMembers);
+    setMemberError(null);
   };
 
   const removeMember = (index: number) => {
@@ -174,6 +193,12 @@ function MemberManagement({
           </Group>
         </Group>
       </Group>
+
+      {memberError && (
+        <Text size="sm" c="red" mb={12}>
+          {memberError}
+        </Text>
+      )}
 
       {members.map((member, index) => (
         <Group key={`member-${index}`} align="center" mb={12}>

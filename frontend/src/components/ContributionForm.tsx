@@ -292,10 +292,14 @@ export function ContributionForm({
       ref={formRef}
       style={{
         borderRadius: isEditMode ? '0px' : '16px',
-        border: isEditMode ? 'none' : '1px solid #FFDD44',
+        border: isEditMode ? 'none' : '1px solid #FACC15',
         padding: isEditMode ? '0px' : '20px',
         width: '100%',
         maxWidth: '100%',
+        
+        boxShadow: isEditMode
+          ? 'none'
+          : '0 16px 30px rgba(15, 23, 42, 0.12)',
       }}
       tabIndex={-1}
     >
@@ -310,8 +314,11 @@ export function ContributionForm({
           autosize
           styles={{
             input: {
-              border: 'none',
-              padding: 0,
+              borderRadius: 12,
+              border: '1px solid #E5E7EB',
+              padding: '16px',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '0 4px 10px rgba(15, 23, 42, 0.06)',
             },
           }}
         />
@@ -338,6 +345,7 @@ export function ContributionForm({
                 onChange={setContributor}
                 placeholder="Contributor"
                 data={contributorOptions.map((option) => option.label)}
+                disabled
               />
             </Box>
 

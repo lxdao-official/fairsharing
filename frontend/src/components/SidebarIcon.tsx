@@ -10,6 +10,7 @@ interface SidebarIconProps {
   size?: number;
   onClick?: () => void;
   ariaLabel?: string;
+  title?: string;
 }
 
 const ACTIVE_INDICATOR_STYLES = {
@@ -31,12 +32,14 @@ export function SidebarIcon({
   size = 56,
   onClick,
   ariaLabel,
+  title,
 }: SidebarIconProps) {
   const buttonContent = (
     <UnstyledButton
       onClick={onClick}
       aria-label={ariaLabel}
       aria-current={isActive ? 'page' : undefined}
+      title={title}
       style={{
         width: size,
         height: size,
@@ -59,6 +62,7 @@ export function SidebarIcon({
     return (
       <Link
         href={href}
+        title={title}
         style={{
           textDecoration: 'none',
           display: 'block',

@@ -73,8 +73,13 @@ export function ProjectBasicInfoFields({
   readOnlyTokenName = false,
 }: BasicInfoProps) {
   const projectName = watch('projectName') ?? '';
-  const description = watch('description') ?? '';
-  const tokenName = watch('tokenName') ?? 'TOKEN';
+  const description = (watch('description') ?? '') as string;
+  const tokenNameValue = (watch('tokenName') ?? '') as string;
+  const tokenNamePlaceholder = tokenNameValue || 'TOKEN';
+  const maxDescriptionLength = 150;
+  const descriptionLength = Math.min(description.length, maxDescriptionLength);
+  const maxTokenNameLength = 20;
+  const tokenNameLength = Math.min(tokenNameValue.length, maxTokenNameLength);
   const slugPreview = generateProjectKey(projectName);
 
   return (
@@ -135,6 +140,14 @@ export function ProjectBasicInfoFields({
         render={({ field }) => (
           <Textarea
             {...field}
+            maxLength={maxDescriptionLength}
+            onChange={(event) => {
+              const value = event.currentTarget.value.slice(
+                0,
+                maxDescriptionLength,
+              );
+              field.onChange(value);
+            }}
             label={
               <span style={{ fontWeight: 700, fontSize: 16 }}>Description</span>
             }
@@ -152,7 +165,7 @@ export function ProjectBasicInfoFields({
         )}
       />
       <Text size="xs" c="gray.6" ta="right">
-        {description.length}/150 characters
+        {descriptionLength}/{maxDescriptionLength} characters
       </Text>
 
       <Controller
@@ -164,8 +177,9 @@ export function ProjectBasicInfoFields({
             onChange={(event) => {
               if (readOnlyTokenName) return;
               const value = event.currentTarget.value
-                .replace(/[^A-Za-z0-9]/g, '')
-                .toUpperCase();
+                .replace(/[^A-Za-z0-9_]/g, '')
+                .toUpperCase()
+                .slice(0, maxTokenNameLength);
               field.onChange(value);
             }}
             label={
@@ -175,14 +189,15 @@ export function ProjectBasicInfoFields({
             }
             required
             readOnly={readOnlyTokenName}
+            maxLength={maxTokenNameLength}
             description={
               <span style={{ color: '#6B7280', fontSize: 16 }}>
                 {readOnlyTokenName
                   ? 'Token name cannot be modified after project creation'
-                  : 'Token representing contributions in your project (Only letters and numbers, automatically converted to uppercase)'}
+                  : 'Token representing contributions in your project (2-20 uppercase letters, numbers, or underscores)'}
               </span>
             }
-            placeholder={tokenName || 'TOKEN'}
+            placeholder={tokenNamePlaceholder}
             radius="sm"
             styles={{
               input: {
@@ -195,6 +210,11 @@ export function ProjectBasicInfoFields({
           />
         )}
       />
+      {!readOnlyTokenName && (
+        <Text size="xs" c="gray.6" ta="right">
+          {tokenNameLength}/{maxTokenNameLength} characters
+        </Text>
+      )}
     </Stack>
   );
 }

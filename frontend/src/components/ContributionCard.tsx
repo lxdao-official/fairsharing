@@ -30,6 +30,7 @@ import { trpc } from '@/utils/trpc';
 import { useUser } from '@/hooks/useAuth';
 import { useUserProjects } from '@/hooks/useUserProjects';
 import { useSignTypedData, useWriteContract, usePublicClient } from 'wagmi';
+import { BaseError, UserRejectedRequestError } from 'viem';
 import type { VoteChoice } from '@/types/vote';
 import type { BuiltContributionPayload } from '@/server/services/publishContributionOnChain';
 import { projectAbi } from '@/abi/project';
@@ -84,7 +85,6 @@ export function ContributionCard({
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [payloadPreview, setPayloadPreview] = useState<BuiltContributionPayload | null>(null);
   const [payloadError, setPayloadError] = useState<string | null>(null);
-  const [txHashInput, setTxHashInput] = useState('');
   const [autoPublishing, setAutoPublishing] = useState(false);
   const [autoPublishError, setAutoPublishError] = useState<string | null>(null);
 
@@ -94,6 +94,45 @@ export function ContributionCard({
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
+
+  const isUserRejectedError = (error: unknown) => {
+    if (error instanceof UserRejectedRequestError) {
+      return true;
+    }
+
+    if (error instanceof BaseError) {
+      const short = (error.shortMessage || error.message).toLowerCase();
+      return short.includes('user rejected') || short.includes('denied transaction');
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      return message.includes('user rejected') || message.includes('denied transaction');
+    }
+
+    return false;
+  };
+
+  const getOnChainErrorMessage = (
+    error: unknown,
+    mode: 'auto' | 'manual',
+  ) => {
+    const defaultMessage =
+      mode === 'auto'
+        ? 'Automatic on-chain publish failed. Use the Publish On-Chain button to retry.'
+        : 'Failed to publish contribution on-chain. Please try again.';
+
+    if (error instanceof BaseError) {
+      const short = error.shortMessage || error.message;
+      return short.length > 200 ? defaultMessage : short;
+    }
+
+    if (error instanceof Error) {
+      return error.message.length > 200 ? defaultMessage : error.message;
+    }
+
+    return defaultMessage;
+  };
 
   // Get votes data for this contribution
   const { data: votesData } = trpc.vote.get.useQuery({
@@ -189,9 +228,9 @@ export function ContributionCard({
         });
       } catch (error) {
         console.error('Automatic on-chain publish failed', error);
-        const errorMessage = error instanceof Error ? error.message :
-          'Automatic on-chain publish failed. Use the Publish On-Chain button to retry.';
-        setAutoPublishError(errorMessage);
+        if (!isUserRejectedError(error)) {
+          setAutoPublishError(getOnChainErrorMessage(error, 'auto'));
+        }
       } finally {
         setAutoPublishing(false);
       }
@@ -243,7 +282,6 @@ export function ContributionCard({
     setIsPublishModalOpen(true);
     setPayloadPreview(null);
     setPayloadError(null);
-    setTxHashInput('');
     try {
       const data = await buildOnChainPayloadMutation.mutateAsync({
         contributionId: contribution.id,
@@ -259,20 +297,76 @@ export function ContributionCard({
     setIsPublishModalOpen(false);
     setPayloadPreview(null);
     setPayloadError(null);
-    setTxHashInput('');
     buildOnChainPayloadMutation.reset();
     markOnChainMutation.reset();
   };
 
   const handleMarkOnChain = async () => {
     try {
+      if (!payloadPreview) {
+        setPayloadError(
+          'Missing on-chain payload. Close and reopen the modal to refresh.',
+        );
+        return;
+      }
+
+      if (!publicClient) {
+        setPayloadError(
+          'Wallet client unavailable. Please reconnect your wallet before publishing on-chain.',
+        );
+        return;
+      }
+
+      const payload = payloadPreview.payload;
+      const formattedVotes = payload.votes.map((vote) => ({
+        voter: vote.voter as `0x${string}`,
+        choice: vote.choice,
+        nonce: BigInt(vote.nonce),
+        signature: vote.signature as `0x${string}`,
+      }));
+
+      const rawContributionJson = JSON.stringify(payload.rawContribution);
+      const rewardAmount = BigInt(payload.rewardAmount || '0');
+      const rewardRecipient = payload.rewardRecipient as `0x${string}`;
+      const strategyData = '0x' as `0x${string}`;
+
+      const txHash = await writeContractAsync({
+        address: payload.project.onChainAddress,
+        abi: projectAbi,
+        functionName: 'submitContribution',
+        args: [
+          payload.project.projectIdBytes32,
+          payload.contribution.contributionIdBytes32,
+          payload.contributionHash,
+          formattedVotes,
+          strategyData,
+          rewardRecipient,
+          rewardAmount,
+          rawContributionJson,
+        ],
+      });
+
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      });
+
+      if (receipt.status !== 'success') {
+        throw new Error(
+          'On-chain transaction reverted. Please retry from the Publish button.',
+        );
+      }
+
       await markOnChainMutation.mutateAsync({
         contributionId: contribution.id,
-        txHash: txHashInput || undefined,
+        txHash,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to mark contribution as on-chain.';
-      setPayloadError(errorMessage);
+      console.error('Manual on-chain publish failed', error);
+      setPayloadError(
+        isUserRejectedError(error)
+          ? 'Transaction rejected in wallet. No changes were made.'
+          : getOnChainErrorMessage(error, 'manual'),
+      );
     }
   };
 
@@ -746,13 +840,6 @@ export function ContributionCard({
               >
                 {JSON.stringify(payloadPreview.payload.rawContribution, null, 2)}
               </Box>
-
-              <TextInput
-                label="On-chain transaction hash (optional for now)"
-                placeholder="0x..."
-                value={txHashInput}
-                onChange={(event) => setTxHashInput(event.currentTarget.value)}
-              />
 
               <Button
                 onClick={handleMarkOnChain}

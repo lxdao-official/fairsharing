@@ -54,14 +54,12 @@ const envChain = defineChain({
   },
 });
 
-const chains = [envChain];
-
 const config = createConfig(
   getDefaultConfig({
     appName: 'FairSharing',
     walletConnectProjectId:
       process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
-    chains,
+    chains: [envChain] as const,
     ssr: true,
   }),
 );

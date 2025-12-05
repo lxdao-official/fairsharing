@@ -218,7 +218,9 @@ export function ProjectEditModal({
     watch,
     formState: { errors, isDirty },
   } = useForm<EditProjectFormData>({
-    resolver: yupResolver<EditProjectFormData>(editProjectSchema),
+    resolver: yupResolver<EditProjectFormData, any, EditProjectFormData>(
+      editProjectSchema as any,
+    ),
     defaultValues,
     mode: 'onBlur',
   });

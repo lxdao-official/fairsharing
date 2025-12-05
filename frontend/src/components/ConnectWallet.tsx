@@ -161,7 +161,9 @@ export function ConnectWallet() {
                 name: profileStatusQuery.data.user.name,
                 avatar: profileStatusQuery.data.user.avatar,
                 bio: profileStatusQuery.data.user.bio,
-                links: profileStatusQuery.data.user.links,
+                links:
+                  profileStatusQuery.data.user
+                    .links as Record<string, string> | null | undefined,
               }
             : undefined
         }

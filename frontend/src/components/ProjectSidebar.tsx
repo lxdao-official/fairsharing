@@ -85,7 +85,7 @@ export function ProjectSidebar({
 
     (data?.owned || []).forEach(pushUnique);
     (data?.member || []).forEach(pushUnique);
-    (data?.contributor || []).forEach((project: ContributorProject) =>
+    (data?.contributor || []).forEach((project) =>
       pushUnique({
         id: project.id,
         key: project.key,

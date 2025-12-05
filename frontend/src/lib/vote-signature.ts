@@ -2,7 +2,7 @@ import { hashTypedData, recoverTypedDataAddress, type Hex } from 'viem';
 
 export type VoteChoiceValue = number;
 
-export interface VoteTypedDataMessage {
+export interface VoteTypedDataMessage extends Record<string, unknown> {
   projectId: Hex;
   contributionId: Hex;
   choice: VoteChoiceValue;
@@ -69,7 +69,8 @@ export const hashVoteTypedData = (
   options?: { chainId?: number; verifyingContract?: `0x${string}` },
 ) => {
   const typedData = buildVoteTypedData(message, options);
-  return hashTypedData(typedData);
+  // Cast to align with viem's MessageDefinition typing (nonce expects bigint)
+  return hashTypedData(typedData as any);
 };
 
 export const recoverVoteSigner = async (
@@ -79,7 +80,7 @@ export const recoverVoteSigner = async (
 ) => {
   const typedData = buildVoteTypedData(message, options);
   return recoverTypedDataAddress({
-    ...typedData,
+    ...(typedData as any),
     signature,
   });
 };

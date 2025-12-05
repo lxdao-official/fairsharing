@@ -15,6 +15,7 @@ interface AddressInputProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   radius?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   style?: React.CSSProperties;
+  disabled?: boolean;
 }
 
 // Validation functions
@@ -89,6 +90,7 @@ export function AddressInput({
   size = 'sm',
   radius = 'sm',
   style,
+  disabled,
 }: AddressInputProps) {
   const [inputValue, setInputValue] = useState(value);
   const [validationType, setValidationType] = useState<
@@ -122,6 +124,7 @@ export function AddressInput({
         onChange={handleInputChange}
         placeholder={placeholder}
         description={description}
+        disabled={disabled}
         required={required}
         error={error}
         size={size}

@@ -4,11 +4,8 @@ import superjson from 'superjson';
 // Define the base context type
 export interface Context {
   req?: Request;
-}
-
-// Define the authenticated context type (extended by middleware)
-export interface AuthenticatedContext extends Context {
-  user: {
+  // Optionally include user/session so public procedures can read ctx.user?.id safely
+  user?: {
     id: string;
     walletAddress: string;
     ensName: string | null;
@@ -18,10 +15,16 @@ export interface AuthenticatedContext extends Context {
     createdAt: Date;
     updatedAt: Date;
   };
-  session: {
+  session?: {
     userId: string;
     walletAddress: string;
   };
+}
+
+// Define the authenticated context type (extended by middleware)
+export interface AuthenticatedContext extends Context {
+  user: NonNullable<Context['user']>;
+  session: NonNullable<Context['session']>;
 }
 
 const t = initTRPC.context<Context>().create({

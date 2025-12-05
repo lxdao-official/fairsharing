@@ -46,13 +46,13 @@ type ProjectFormValues = {
   otherLinks?: ProjectLinkInput[];
 };
 
-type FormControl<T extends ProjectFormValues> = Control<T>;
-type FormErrors<T extends ProjectFormValues> = FieldErrors<T>;
+type FormControl = Control<any>;
+type FormErrors = FieldErrors<any>;
 
-interface BasicInfoProps<T extends ProjectFormValues> {
-  control: FormControl<T>;
-  errors: FormErrors<T>;
-  watch: UseFormWatch<T>;
+interface BasicInfoProps {
+  control: FormControl;
+  errors: FormErrors;
+  watch: UseFormWatch<any>;
   requireLogo?: boolean;
   logoDescription?: string;
   showSlugPreview?: boolean;
@@ -61,7 +61,7 @@ interface BasicInfoProps<T extends ProjectFormValues> {
   readOnlyTokenName?: boolean;
 }
 
-export function ProjectBasicInfoFields<T extends ProjectFormValues>({
+export function ProjectBasicInfoFields({
   control,
   errors,
   watch,
@@ -71,7 +71,7 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
   slugBasePath = '/project/',
   slugFallback,
   readOnlyTokenName = false,
-}: BasicInfoProps<T>) {
+}: BasicInfoProps) {
   const projectName = watch('projectName') ?? '';
   const description = watch('description') ?? '';
   const tokenName = watch('tokenName') ?? 'TOKEN';
@@ -90,8 +90,8 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
           {logoDescription}
         </Text>
         <Controller
-          name="logo"
-          control={control}
+          name={'logo' as any}
+          control={control as any}
           render={({ field: { value, onChange } }) => (
             <ImageUpload
               value={value}
@@ -105,8 +105,8 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
       </Box>
 
       <Controller
-        name="projectName"
-        control={control}
+        name={'projectName' as any}
+        control={control as any}
         render={({ field }) => (
           <TextInput
             {...field}
@@ -130,8 +130,8 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
       )}
 
       <Controller
-        name="description"
-        control={control}
+        name={'description' as any}
+        control={control as any}
         render={({ field }) => (
           <Textarea
             {...field}
@@ -156,8 +156,8 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
       </Text>
 
       <Controller
-        name="tokenName"
-        control={control}
+        name={'tokenName' as any}
+        control={control as any}
         render={({ field }) => (
           <TextInput
             {...field}
@@ -199,17 +199,17 @@ export function ProjectBasicInfoFields<T extends ProjectFormValues>({
   );
 }
 
-interface ValidationProps<T extends ProjectFormValues> {
-  control: FormControl<T>;
-  errors: FormErrors<T>;
-  watch: UseFormWatch<T>;
+interface ValidationProps {
+  control: FormControl;
+  errors: FormErrors;
+  watch: UseFormWatch<any>;
 }
 
-export function ProjectValidationSettingsFields<T extends ProjectFormValues>({
+export function ProjectValidationSettingsFields({
   control,
   errors,
   watch,
-}: ValidationProps<T>) {
+}: ValidationProps) {
   const validateType = watch('validateType');
 
   return (
@@ -231,8 +231,8 @@ export function ProjectValidationSettingsFields<T extends ProjectFormValues>({
           project.
         </Text>
         <Controller
-          name="validateType"
-          control={control}
+          name={'validateType' as any}
+          control={control as any}
           render={({ field: { value, onChange } }) => (
             <ValidateCardSelect
               value={value}
@@ -252,8 +252,8 @@ export function ProjectValidationSettingsFields<T extends ProjectFormValues>({
           If you need further customization, please contact the FairSharing team.
         </Text>
         <Controller
-          name="validationStrategy"
-          control={control}
+          name={'validationStrategy' as any}
+          control={control as any}
           render={({ field: { value, onChange } }) => (
             <ValidationStrategySelect
               value={value}
@@ -282,8 +282,8 @@ export function ProjectValidationSettingsFields<T extends ProjectFormValues>({
           </Text>
           <Group align="center" mt={8} mb={8}>
             <Controller
-              name="validationPeriodDays"
-              control={control}
+              name={'validationPeriodDays' as any}
+              control={control as any}
               render={({ field: { value, onChange } }) => (
                 <NumberInput
                   value={value ?? 0}
@@ -312,15 +312,17 @@ export function ProjectValidationSettingsFields<T extends ProjectFormValues>({
   );
 }
 
-interface SubmissionProps<T extends ProjectFormValues> {
-  control: FormControl<T>;
-  errors: FormErrors<T>;
-  watch: UseFormWatch<T>;
+interface SubmissionProps {
+  control: FormControl;
+  errors: FormErrors;
+  watch: UseFormWatch<any>;
 }
 
-export function ProjectSubmissionSettingsFields<
-  T extends ProjectFormValues,
->({ control, errors, watch }: SubmissionProps<T>) {
+export function ProjectSubmissionSettingsFields({
+  control,
+  errors,
+  watch,
+}: SubmissionProps) {
   const tokenName = watch('tokenName') || 'TOKEN';
 
   return (
@@ -331,8 +333,8 @@ export function ProjectSubmissionSettingsFields<
           <span style={{ color: '#F43F5E', marginLeft: 4 }}>*</span>
         </Text>
         <Controller
-          name="submitterType"
-          control={control}
+          name={'submitterType' as any}
+          control={control as any}
           render={({ field: { value, onChange } }) => (
             <SubmitterCardSelect
               value={value}
@@ -352,8 +354,8 @@ export function ProjectSubmissionSettingsFields<
         </Text>
         <Group align="center" mt={8}>
           <Controller
-            name="defaultHourlyPay"
-            control={control}
+            name={'defaultHourlyPay' as any}
+            control={control as any}
             render={({ field: { value, onChange } }) => (
               <NumberInput
                 value={value ?? null}
@@ -379,21 +381,21 @@ export function ProjectSubmissionSettingsFields<
   );
 }
 
-interface TeamProps<T extends ProjectFormValues> {
-  control: FormControl<T>;
-  errors: FormErrors<T>;
+interface TeamProps {
+  control: FormControl;
+  errors: FormErrors;
 }
 
-export function ProjectTeamFields<T extends ProjectFormValues>({
+export function ProjectTeamFields({
   control,
   errors,
   ownerAddress,
-}: TeamProps<T> & { ownerAddress: string }) {
+}: TeamProps & { ownerAddress: string }) {
   return (
     <Stack gap="lg">
       <Controller
-        name="projectOwner"
-        control={control}
+        name={'projectOwner' as any}
+        control={control as any}
         render={({ field: { value, onChange } }) => (
           <AddressInput
             value={value}
@@ -419,8 +421,8 @@ export function ProjectTeamFields<T extends ProjectFormValues>({
       />
 
       <Controller
-        name="members"
-        control={control}
+        name={'members' as any}
+        control={control as any}
         render={({ field: { value, onChange } }) => (
           <MemberManagement
             value={value}
@@ -433,17 +435,17 @@ export function ProjectTeamFields<T extends ProjectFormValues>({
   );
 }
 
-interface LinksProps<T extends ProjectFormValues> {
-  control: FormControl<T>;
+interface LinksProps {
+  control: FormControl;
 }
 
-export function ProjectLinksFields<T extends ProjectFormValues>({
+export function ProjectLinksFields({
   control,
-}: LinksProps<T>) {
+}: LinksProps) {
   return (
     <Controller
-      name="otherLinks"
-      control={control}
+      name={'otherLinks' as any}
+      control={control as any}
       render={({ field: { value, onChange } }) => (
         <OtherLinksManagement value={value} onChange={onChange} />
       )}

@@ -180,7 +180,7 @@ export const projectRouter = createTRPCRouter({
         ctx,
       }: {
         input: z.infer<typeof createProjectSchema>;
-        ctx: import('./trpc').AuthenticatedContext;
+        ctx: import('../trpc').AuthenticatedContext;
       }) => {
         try {
           // Generate unique project key
@@ -400,7 +400,7 @@ export const projectRouter = createTRPCRouter({
         ctx,
       }: {
         input: z.infer<typeof updateProjectSchema>;
-        ctx: import('./trpc').AuthenticatedContext;
+        ctx: import('../trpc').AuthenticatedContext;
       }) => {
         const userId = ctx.user.id;
 
@@ -530,7 +530,7 @@ export const projectRouter = createTRPCRouter({
                 payload.defaultHourlyPay === null
                   ? null
                   : payload.defaultHourlyPay,
-              links: formattedLinks,
+              links: formattedLinks ?? undefined,
             },
           });
 

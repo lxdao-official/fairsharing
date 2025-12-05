@@ -75,7 +75,10 @@ async function applyVotingStrategy(contributionId: string): Promise<Contribution
   const project = contribution.project;
   const approvalStrategy = project.approvalStrategy as Record<string, unknown> | null;
   const strategyKey = (approvalStrategy?.strategy as string) || 'simple';
-  const strategyConfig = approvalStrategy?.config ?? approvalStrategy;
+  const strategyConfig = (approvalStrategy?.config ?? approvalStrategy) as
+    | Record<string, unknown>
+    | null
+    | undefined;
   
   // Count eligible voters
   let eligibleVoters = 0;
@@ -246,7 +249,7 @@ export const voteRouter = createTRPCRouter({
 
       if (!verifyingContract) {
         throw new TRPCError({
-          code: 'FAILED_PRECONDITION',
+          code: 'BAD_REQUEST',
           message:
             'Project is missing on-chain address. Configure it before collecting on-chain votes.',
         });
@@ -314,7 +317,7 @@ export const voteRouter = createTRPCRouter({
 
         if (!verifyingContract) {
           throw new TRPCError({
-            code: 'FAILED_PRECONDITION',
+            code: 'BAD_REQUEST',
             message:
               'Project is missing on-chain address. Configure it before collecting on-chain votes.',
           });

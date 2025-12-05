@@ -2,6 +2,7 @@ import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter } from '@/server/routers';
 import { verifyJWT, extractBearerToken } from '@/lib/auth';
 import { db } from '@/lib/db';
+import type { Context } from '@/server/trpc';
 
 const handler = (req: Request) =>
   fetchRequestHandler({
@@ -10,7 +11,7 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: async ({ req }: { req: Request }) => {
       // Try to get user from token if present
-      let user = null;
+      let user: Context['user'] | null = null;
       try {
         const authHeader = req.headers.get('authorization');
         const token = extractBearerToken(authHeader ?? undefined);
@@ -42,7 +43,7 @@ const handler = (req: Request) =>
 
       return {
         req,
-        user,
+        user: user ?? undefined,
       };
     },
     onError: ({ path, error }) => {

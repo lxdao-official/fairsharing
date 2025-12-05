@@ -106,9 +106,26 @@ export function ProfileCompletionModal({
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
     onSuccess: async (data) => {
-      patchPublicProfileCache(data.user);
-      onProfileUpdated?.(data.user);
-      broadcastProfileUpdated({ user: data.user });
+      const nextUser: ProfileUser = {
+        id: data.user.id,
+        walletAddress: data.user.walletAddress,
+        ensName: data.user.ensName,
+        name: data.user.name,
+        avatar: data.user.avatar,
+        bio: data.user.bio,
+        links: data.user.links as Record<string, string> | null | undefined,
+      };
+
+      patchPublicProfileCache(nextUser);
+      onProfileUpdated?.(nextUser);
+      broadcastProfileUpdated({
+        user: {
+          id: nextUser.id,
+          walletAddress: nextUser.walletAddress,
+          name: nextUser.name,
+          avatar: nextUser.avatar,
+        },
+      });
       setFormError(null);
 
       const invalidations: Array<Promise<unknown>> = [

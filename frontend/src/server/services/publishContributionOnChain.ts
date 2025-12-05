@@ -137,14 +137,14 @@ export const buildContributionOnChainPayload = async (
   const rewardAmount = contribution.contributors.reduce<bigint>((total, entry) => {
     const points = entry.points ?? 0;
     return total + BigInt(points);
-  }, 0n);
+  }, BigInt(0));
   const rewardRecipient = primaryContributorAddress;
 
   const payload: OnChainPublishPayload = {
     project: {
       id: contribution.projectId,
       projectIdBytes32,
-      onChainAddress: contribution.project.onChainAddress,
+      onChainAddress: contribution.project.onChainAddress as `0x${string}`,
     },
     contribution: {
       id: contribution.id,
@@ -195,8 +195,8 @@ export const commitContributionOnChain = async (
     data: {
       status: ContributionStatus.ON_CHAIN,
       contributionHash: payload.contributionHash,
-      onChainSnapshot: payload.rawContribution as Prisma.InputJsonValue,
-      onChainPayload: payload as Prisma.InputJsonValue,
+      onChainSnapshot: payload.rawContribution as unknown as Prisma.InputJsonValue,
+      onChainPayload: payload as unknown as Prisma.InputJsonValue,
       onChainPublishedAt: new Date(),
       onChainTxHash: txHash ?? null,
     },

@@ -31,6 +31,7 @@ import {
 import { trpc } from '@/utils/trpc';
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 import { projectAbi } from '@/abi/project';
+import { buildProjectMetadataUri } from '@/utils/metadata';
 
 interface ProjectEditModalProps {
   project: ProjectDetails;
@@ -195,23 +196,6 @@ const diffRoleSets = (current: RoleSets, target: RoleSets): RoleUpdateArgs => {
   };
 };
 
-const buildMetadataUri = (
-  data: EditProjectFormData,
-  links: ProjectLinkInput[],
-) => {
-  const payload = {
-    name: data.projectName,
-    description: data.description,
-    logo: data.logo ?? null,
-    tokenSymbol: data.tokenName,
-    links,
-    defaultHourlyPay: data.defaultHourlyPay,
-    updatedAt: new Date().toISOString(),
-  };
-
-  return `data:application/json;utf8,${encodeURIComponent(JSON.stringify(payload))}`;
-};
-
 export function ProjectEditModal({
   project,
   opened,
@@ -327,7 +311,7 @@ export function ProjectEditModal({
     const currentRoles = buildRoleSetsFromProject(project);
     const targetRoles = buildRoleSetsFromForm(ownerAddress, members);
     const roleUpdates = diffRoleSets(currentRoles, targetRoles);
-    const metadataUri = buildMetadataUri(data, otherLinks);
+    const metadataUri = buildProjectMetadataUri({ projectId: project.id });
 
     setIsOnChainUpdating(true);
 

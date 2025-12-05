@@ -31,6 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { decodeEventLog, keccak256, stringToHex, zeroAddress } from 'viem';
 import { projectFactoryAbi } from '@/abi/projectFactory';
+import { buildProjectMetadataUri } from '@/utils/metadata';
 
 export default function CreateProjectPage() {
   const { address } = useAccount();
@@ -185,6 +186,8 @@ export default function CreateProjectPage() {
       ownerAddress,
     );
 
+    const metadataUri = buildProjectMetadataUri({ projectId: reservedProjectId });
+
     try {
       setIsOnChainDeploying(true);
 
@@ -197,7 +200,7 @@ export default function CreateProjectPage() {
             projectId: projectIdBytes32,
             projectOwner: ownerAddress,
             name: data.projectName,
-            metadataUri: '',
+            metadataUri,
             orgAddress: zeroAddressValue,
             validateModel: data.validateType === 'specific' ? 1 : 0,
             contributionModel: data.submitterType === 'restricted' ? 1 : 0,

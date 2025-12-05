@@ -1,0 +1,118 @@
+import { PrismaClient } from '@prisma/client';
+import cuid from 'cuid';
+import { stringIdToBytes32 } from '../src/server/utils/id';
+
+const prisma = new PrismaClient();
+
+function generateHexString(byteLength: number): string {
+  return (
+    '0x' +
+    Array.from({ length: byteLength * 2 }, () =>
+      Math.floor(Math.random() * 16).toString(16),
+    ).join('')
+  );
+}
+
+const generateWalletAddress = () => generateHexString(20);
+
+const projectTemplates = [
+  { name: 'DeFi Revolution', symbol: 'DEFI' },
+  { name: 'NFT Marketplace', symbol: 'NFT' },
+  { name: 'Web3 Social', symbol: 'WEB3' },
+  { name: 'Gaming DAO', symbol: 'GAME' },
+  { name: 'Creator Economy', symbol: 'CREATE' },
+];
+
+const contributionTexts = [
+  'Implemented user authentication system',
+  'Fixed critical bug in smart contract',
+  'Created responsive dashboard UI',
+  'Added automated tests',
+  'Optimized database performance',
+];
+
+function randomChoice<T>(array: T[]): T {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+async function main() {
+  console.log('🌱 Starting simple seed...');
+
+  // 创建用户
+  const users = [];
+  for (let i = 1; i <= 10; i++) {
+    const user = await prisma.user.create({
+      data: {
+        walletAddress: generateWalletAddress(),
+        name: `User ${i}`,
+        bio: `Test user ${i}`,
+      },
+    });
+    users.push(user);
+  }
+  console.log(`✅ Created ${users.length} users`);
+
+  // 创建项目
+  const projects = [];
+  for (let i = 0; i < projectTemplates.length; i++) {
+    const template = projectTemplates[i];
+    const owner = randomChoice(users);
+
+    const projectId = cuid();
+    const projectBytes32 = stringIdToBytes32(projectId);
+    const project = await prisma.project.create({
+      data: {
+        id: projectId,
+        projectIdBytes32: projectBytes32,
+        onChainAddress: generateWalletAddress(),
+        key: template.name.toLowerCase().replace(/\s+/g, '-'),
+        name: template.name,
+        description: `A test project for ${template.name}`,
+        tokenSymbol: template.symbol,
+        ownerId: owner.id,
+      },
+    });
+    projects.push(project);
+  }
+  console.log(`✅ Created ${projects.length} projects`);
+
+  // 为每个项目创建贡献
+  for (const project of projects) {
+    for (let i = 0; i < 5; i++) {
+      const contributor = randomChoice(users);
+
+      const contributionId = cuid();
+      const contributionBytes32 = stringIdToBytes32(contributionId);
+      const contribution = await prisma.contribution.create({
+        data: {
+          id: contributionId,
+          contributionIdBytes32: contributionBytes32,
+          content: randomChoice(contributionTexts),
+          hours: Math.round((Math.random() * 10 + 1) * 100) / 100,
+          projectId: project.id,
+        },
+      });
+
+      // 添加贡献者关联
+      await prisma.contributionContributor.create({
+        data: {
+          contributionId: contribution.id,
+          contributorId: contributor.id,
+          hours: contribution.hours,
+          points: Math.floor(Math.random() * 50) + 10,
+        },
+      });
+    }
+  }
+
+  console.log('🎉 Simple seed completed!');
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Error:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

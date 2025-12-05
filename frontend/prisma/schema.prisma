@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+///////////////////////
+//  User & Accounts  //
+///////////////////////
+model User {
+  id             String                    @id @default(cuid())
+  walletAddress  String                    @unique @db.VarChar(42)
+  ensName        String?                   @db.VarChar(255)
+  name           String?
+  avatar         String?
+  bio            String?
+  links          Json?
+  nonce          String                    @default(cuid())
+  profileCompletedAt    DateTime?
+  profilePromptDismissedAt DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  deletedAt      DateTime?
+  ownedProjects  Project[]                 @relation("ProjectOwner")
+  contributions  ContributionContributor[]
+  votes          Vote[]
+  projectMembers ProjectMember[]
+  projectFollows ProjectFollow[]
+
+  @@index([createdAt(sort: Desc)], map: "idx_user_created_desc")
+  @@index([deletedAt])
+  @@map("users")
+}
+
+///////////////////////
+//     Projects      //
+///////////////////////
+model Project {
+  id               String                @id @default(cuid())
+  key              String                @unique(map: "uq_project_key")
+  projectIdBytes32 String?               @map("project_id_bytes32")
+  onChainAddress   String?               @map("on_chain_address")
+  name             String
+  description      String
+  logo             String?
+  links            Json?
+  tokenSymbol      String?
+  status           ProjectStatus         @default(ACTIVE)
+  validateType     ProjectValidateType   @default(SPECIFIC_MEMBERS)
+  approvalStrategy Json?
+  submitStrategy   ProjectSubmitStrategy @default(EVERYONE)
+  ownerId          String
+  owner            User                  @relation("ProjectOwner", fields: [ownerId], references: [id])
+  contributions    Contribution[]
+  members          ProjectMember[]
+  followers        ProjectFollow[]
+  defaultHourRate  Float?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  deletedAt        DateTime?
+
+  @@index([status, createdAt(sort: Desc)], map: "idx_project_status_created")
+  @@index([ownerId])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectValidateType {
+  SPECIFIC_MEMBERS
+  ALL_MEMBERS
+}
+
+enum ProjectSubmitStrategy {
+  EVERYONE
+  RESTRICTED
+}
+
+///////////////////////
+//   ProjectMember   //
+///////////////////////
+model ProjectMember {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id])
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id])
+  role      MemberRole[] @default([CONTRIBUTOR])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([role], type: Gin)
+  @@map("project_members")
+}
+
+enum MemberRole {
+  ADMIN
+  VALIDATOR
+  CONTRIBUTOR
+}
+
+///////////////////////
+//  ProjectFollow    //
+///////////////////////
+model ProjectFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([createdAt(sort: Desc)])
+  @@index([deletedAt])
+  @@map("project_follows")
+}
+
+///////////////////////
+//   Contributions   //
+///////////////////////
+model Contribution {
+  id           String                    @id @default(cuid())
+  content      String
+  hours        Float?
+  tags         String[]                  @default([])
+  startAt      DateTime?
+  endAt        DateTime?
+  status       ContributionStatus        @default(VALIDATING)
+  contributionIdBytes32 String?          @map("contribution_id_bytes32")
+  contributionHash String?
+  onChainSnapshot  Json?
+  onChainPayload   Json?
+  onChainPublishedAt DateTime?
+  onChainTxHash   String?                @map("on_chain_tx_hash")
+  projectId    String
+  project      Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contributors ContributionContributor[]
+  votes        Vote[]
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([projectId, status, createdAt(sort: Desc)], map: "idx_contrib_proj_status_time")
+  @@index([projectId, createdAt(sort: Desc), deletedAt], map: "idx_contrib_sidebar_query")
+  @@index([deletedAt])
+  @@index([tags], type: Gin)
+  @@map("contributions")
+}
+
+enum ContributionStatus {
+  VALIDATING
+  PASSED
+  FAILED
+  ON_CHAIN
+}
+
+///////////////////////
+//       Votes       //
+///////////////////////
+model Vote {
+  id             String       @id @default(cuid())
+  type           VoteType
+  voterId        String
+  voter          User         @relation(fields: [voterId], references: [id])
+  contributionId String
+  contribution   Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  nonce          Int          @default(0)
+  signature      String?
+  typedDataHash  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([voterId, contributionId])
+  @@index([contributionId])
+  @@index([voterId])
+  @@index([type])
+  @@index([createdAt(sort: Desc)])
+  @@map("votes")
+}
+
+enum VoteType {
+  PASS
+  FAIL
+  SKIP
+}
+
+///////////////////////
+//  Contributors ↔   //
+///////////////////////
+model ContributionContributor {
+  id             String       @id @default(cuid())
+  contributionId String
+  contribution   Contribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  contributorId  String
+  contributor    User         @relation(fields: [contributorId], references: [id])
+  hours          Float?
+  points         Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([contributionId, contributorId])
+  @@index([contributorId])
+  @@index([contributionId])
+  @@index([contributorId, createdAt(sort: Desc)], map: "idx_contributor_time")
+  @@index([createdAt(sort: Desc)])
+  @@map("contribution_contributors")
+}

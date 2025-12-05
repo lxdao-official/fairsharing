@@ -625,6 +625,7 @@ export default function UserPage() {
                               key={contribution.id}
                               contribution={contribution}
                               projectId={contribution.project?.id || ''}
+                              tokenSymbol={contribution.project?.tokenSymbol}
                             />
                           ))}
                         </SimpleGrid>

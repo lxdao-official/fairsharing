@@ -6,7 +6,6 @@ import { createTRPCReact } from '@trpc/react-query';
 import { useState } from 'react';
 import superjson from 'superjson';
 import { createConfig, WagmiProvider } from 'wagmi';
-import { mainnet, sepolia } from 'wagmi/chains';
 import { defineChain } from 'viem';
 import { ConnectKitProvider, getDefaultConfig } from 'connectkit';
 
@@ -20,10 +19,29 @@ const trpc = createTRPCReact<AppRouter>();
 const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 31337);
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL ?? 'http://127.0.0.1:8545';
 
-const localChain = defineChain({
+// Single env-driven chain (works for local, Sepolia, OP Sepolia, mainnet, etc.)
+const envChain = defineChain({
   id: chainId,
-  name: 'Local Anvil',
-  network: 'anvil',
+  name:
+    chainId === 1
+      ? 'Ethereum'
+      : chainId === 11155111
+        ? 'Sepolia'
+        : chainId === 10
+          ? 'Optimism'
+          : chainId === 11155420
+            ? 'Optimism Sepolia'
+            : 'Custom Chain',
+  network:
+    chainId === 1
+      ? 'mainnet'
+      : chainId === 11155111
+        ? 'sepolia'
+        : chainId === 10
+          ? 'optimism'
+          : chainId === 11155420
+            ? 'optimism-sepolia'
+            : 'custom',
   nativeCurrency: {
     name: 'Ether',
     symbol: 'ETH',
@@ -36,8 +54,7 @@ const localChain = defineChain({
   },
 });
 
-const chains =
-  process.env.NODE_ENV === 'development' ? [localChain] : [sepolia, mainnet];
+const chains = [envChain];
 
 const config = createConfig(
   getDefaultConfig({

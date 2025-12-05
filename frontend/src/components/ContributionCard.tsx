@@ -70,11 +70,13 @@ interface ContributionData {
 interface ContributionCardProps {
   contribution: ContributionData;
   projectId: string;
+  tokenSymbol?: string | null;
 }
 
 export function ContributionCard({
   contribution,
   projectId,
+  tokenSymbol,
 }: ContributionCardProps) {
   const [isContentHovered, setIsContentHovered] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -234,6 +236,8 @@ export function ContributionCard({
       ? contribution.contributors.some((c) => c.contributor.id === user.id)
       : false;
   }, [contribution.contributors, user]);
+
+  const displayTokenSymbol = tokenSymbol || 'Points';
 
   const handleOpenPublishModal = async () => {
     setIsPublishModalOpen(true);
@@ -572,10 +576,10 @@ export function ContributionCard({
             <Group gap={16} align="center">
               <Text fw={600} size="sm">
                 {contribution.contributors.reduce(
-                  (sum, c) => sum + (c.points || 0),
-                  0,
-                )}{' '}
-                LXP
+              (sum, c) => sum + (c.points || 0),
+              0,
+            )}{' '}
+                {displayTokenSymbol}
               </Text>
             </Group>
 

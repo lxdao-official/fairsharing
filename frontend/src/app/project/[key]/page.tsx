@@ -89,7 +89,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         <Stack gap={64}>
           <ProjectHeader project={project} />
           <Suspense fallback={<LoadingSpinner />}>
-            <ContributionsSection projectId={project.id} />
+            <ContributionsSection
+              projectId={project.id}
+              tokenSymbol={project.tokenSymbol}
+            />
           </Suspense>
           <Suspense fallback={<LoadingSpinner />}>
             <ContributorsSection projectId={project.id} />

@@ -438,6 +438,7 @@ export const contributionRouter = createTRPCRouter({
                 key: true,
                 name: true,
                 logo: true,
+                tokenSymbol: true,
               },
             },
             contributors: {

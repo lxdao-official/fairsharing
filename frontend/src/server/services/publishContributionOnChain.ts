@@ -15,21 +15,13 @@ interface VoteRecordPayload {
 }
 
 interface ContributionSnapshot {
-  projectId: string;
-  contributionId: string;
   content: string;
   hours: number | null;
   tags: string[];
   startAt: SerializableDate;
   endAt: SerializableDate;
-  createdAt: string;
-  updatedAt: string;
-  contributors: Array<{
-    contributorId: string;
-    walletAddress: string;
-    hours: number | null;
-    points: number | null;
-  }>;
+  contributorAddress: string;
+  points: number | null;
 }
 
 export interface OnChainPublishPayload {
@@ -113,22 +105,21 @@ export const buildContributionOnChainPayload = async (
     contribution.contributionIdBytes32,
   );
 
+  const primaryEntry = contribution.contributors[0];
+  const primaryContributorAddress = primaryEntry?.contributor.walletAddress;
+
+  if (!primaryContributorAddress) {
+    throw new Error('Contribution is missing contributor wallet address');
+  }
+
   const snapshot: ContributionSnapshot = {
-    projectId: contribution.projectId,
-    contributionId: contribution.id,
     content: contribution.content,
     hours: contribution.hours ?? null,
     tags: contribution.tags,
     startAt: normalizeDate(contribution.startAt ?? null),
     endAt: normalizeDate(contribution.endAt ?? null),
-    createdAt: contribution.createdAt.toISOString(),
-    updatedAt: contribution.updatedAt.toISOString(),
-    contributors: contribution.contributors.map((entry) => ({
-      contributorId: entry.contributorId,
-      walletAddress: entry.contributor.walletAddress,
-      hours: entry.hours ?? null,
-      points: entry.points ?? null,
-    })),
+    contributorAddress: primaryContributorAddress,
+    points: primaryEntry?.points ?? null,
   };
 
   const snapshotString = JSON.stringify(snapshot);
@@ -147,10 +138,7 @@ export const buildContributionOnChainPayload = async (
     const points = entry.points ?? 0;
     return total + BigInt(points);
   }, 0n);
-  const rewardRecipient = contribution.contributors[0]?.contributor.walletAddress;
-  if (!rewardRecipient) {
-    throw new Error('Contribution is missing contributor wallet address');
-  }
+  const rewardRecipient = primaryContributorAddress;
 
   const payload: OnChainPublishPayload = {
     project: {

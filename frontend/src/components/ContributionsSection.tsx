@@ -21,9 +21,13 @@ import { trpc } from '@/utils/trpc';
 
 interface ContributionsSectionProps {
   projectId: string;
+  tokenSymbol?: string | null;
 }
 
-export function ContributionsSection({ projectId }: ContributionsSectionProps) {
+export function ContributionsSection({
+  projectId,
+  tokenSymbol,
+}: ContributionsSectionProps) {
   const [activeTab, setActiveTab] = useState('all');
   const [selectedContributor, setSelectedContributor] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -199,6 +203,7 @@ export function ContributionsSection({ projectId }: ContributionsSectionProps) {
                     : null,
                 }}
                 projectId={projectId}
+                tokenSymbol={tokenSymbol}
               />
             ))}
           </SimpleGrid>

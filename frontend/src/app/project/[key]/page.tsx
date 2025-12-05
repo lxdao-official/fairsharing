@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import type { ProjectDetails } from '@/types/project';
 
 interface ProjectPageProps {
   params: Promise<{
@@ -16,7 +17,9 @@ interface ProjectPageProps {
 }
 
 // Server-side data fetching function
-async function getProjectData(projectKey: string) {
+async function getProjectData(
+  projectKey: string,
+): Promise<ProjectDetails | null> {
   try {
     const project = await db.project.findUnique({
       where: {
@@ -63,7 +66,7 @@ async function getProjectData(projectKey: string) {
       },
     });
 
-    return project;
+    return project as unknown as ProjectDetails;
   } catch (error) {
     console.error('Error fetching project:', error);
     return null;

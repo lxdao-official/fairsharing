@@ -38,7 +38,7 @@
     "ethers": "^6.14.4",
     "jsonwebtoken": "^9.0.2",
     "lodash.debounce": "^4.0.8",
-    "next": "15.3.3",
+    "next": "^15.3.6",
     "pg": "^8.16.0",
     "prisma": "^6.9.0",
     "react": "^18.3.1",
